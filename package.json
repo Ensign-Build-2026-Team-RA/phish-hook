@@ -16,7 +16,15 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "eslint": "^10.12.0",
+    "jsdom": "^30.1.2",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
     "vitest": "^5.0.3",
     "wrangler": "^4.16.1"
+  },
+  "dependencies": {
+    "html-to-text": "^10.0.1",
+    "mimetext": "^3.0.28",
+    "postal-mime": "^4.0.5"
   }
 }

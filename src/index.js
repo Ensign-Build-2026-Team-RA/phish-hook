@@ -1,5 +1,5 @@
 const AI_MODEL = '@cf/google/gemma-4-26b-a4b-it'
-const MAX_MESSAGE_LENGTH = 5000
+import { MAX_MESSAGE_LENGTH } from '../shared/analysis-link.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -90,6 +90,13 @@ const analyzeMessage = async (env, { text, sender = 'Unknown', subject = 'No Sub
 }
 
 export default {
+  async email(message, env) {
+    const [{ EmailMessage }, { handleEmail }] = await Promise.all([
+      import('cloudflare:email'),
+      import('./email.js'),
+    ])
+    await handleEmail(message, env, EmailMessage)
+  },
   async fetch(request, env) {
     const url = new URL(request.url)
 
@@ -194,7 +201,7 @@ export default {
         })
         return jsonResponse({ success: true, analysis, model: AI_MODEL, rawModelResponse })
       } catch (error) {
-        console.error('Workers AI message analysis failed:', error?.name || 'UnknownError', error?.message || 'No error message')
+        console.error('Workers AI message analysis failed.')
         if (error?.rawModelResponse !== undefined) {
           return jsonResponse({
             error: 'Workers AI returned a response the analyzer could not parse.',

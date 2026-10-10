@@ -1,5 +1,6 @@
 import SecurityDashboard from './SecurityDashboard'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { MAX_MESSAGE_LENGTH, readAnalysisFragment } from '../../shared/analysis-link'
 import './App.css'
 
 const navItems = ['Home', 'Analyze', 'Dashboard', 'History', 'Safety Guide'] as const
@@ -73,7 +74,10 @@ const guideItems = [
 ]
 
 function App() {
-  const [activePage, setActivePage] = useState<NavItem>('Home')
+  const [emailPrefill] = useState(() => typeof window === 'undefined' ? null : readAnalysisFragment(window.location.hash))
+  const privateEmailSession = useRef(emailPrefill !== null)
+  const [isEmailSession, setIsEmailSession] = useState(emailPrefill !== null)
+  const [activePage, setActivePage] = useState<NavItem>(emailPrefill ? 'Analyze' : 'Home')
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     if (typeof window === 'undefined') {
       return 'light'
@@ -83,6 +87,7 @@ function App() {
     return savedTheme === 'dark' || savedTheme === 'light' ? savedTheme : 'light'
   })
   const [draftInput, setDraftInput] = useState(() => {
+    if (emailPrefill) return emailPrefill.message
     if (typeof window === 'undefined') {
       return ''
     }
@@ -110,7 +115,7 @@ function App() {
   const [lastAnalyzedInput, setLastAnalyzedInput] = useState('')
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [progressValue, setProgressValue] = useState(0)
-  const [analysisError, setAnalysisError] = useState('')
+  const [analysisError, setAnalysisError] = useState(emailPrefill?.error ?? '')
   const [rawAiResponse, setRawAiResponse] = useState<unknown>(null)
   const [aiModel, setAiModel] = useState('')
 
@@ -129,6 +134,26 @@ function App() {
     ? 'Paste a message to start the phishing assessment.'
     : analysis.summary
   useEffect(() => {
+    const consumeFragment = () => {
+      const prefill = readAnalysisFragment(window.location.hash)
+      if (!prefill) return
+      privateEmailSession.current = true
+      setIsEmailSession(true)
+      setActivePage('Analyze')
+      setDraftInput(prefill.message)
+      setAnalysisError(prefill.error)
+      setLastAnalyzedInput('')
+      setAnalysis(emptyAnalysis)
+      setRawAiResponse(null)
+      setProgressValue(0)
+      // Remove the email from the current browser history entry after importing it.
+      window.history.replaceState(null, '', window.location.pathname + window.location.search)
+    }
+    consumeFragment()
+    window.addEventListener('hashchange', consumeFragment)
+    return () => window.removeEventListener('hashchange', consumeFragment)
+  }, [])
+  useEffect(() => {
     if (typeof window !== 'undefined') {
       window.localStorage.setItem('phish-hook-page', activePage)
     }
@@ -142,7 +167,7 @@ function App() {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      window.localStorage.setItem('phish-hook-draft', draftInput)
+      if (!privateEmailSession.current) window.localStorage.setItem('phish-hook-draft', draftInput)
     }
   }, [draftInput])
 
@@ -219,7 +244,7 @@ function App() {
       setRawAiResponse(payload.rawModelResponse ?? payload)
       setAiModel(payload.model ?? 'Unknown model')
 
-      if (shouldAddToHistory) {
+      if (shouldAddToHistory && !privateEmailSession.current) {
         const inputPreview = textToAnalyze.trim()
         const title = inputPreview.length > 42 ? `${inputPreview.slice(0, 42)}...` : inputPreview
         setHistoryRows((currentRows) => [{
@@ -340,7 +365,7 @@ function App() {
               <textarea
                 value={draftInput}
                 onChange={(event) => setDraftInput(event.target.value)}
-                maxLength={5000}
+                maxLength={MAX_MESSAGE_LENGTH}
                 placeholder={threatExampleText}
                 aria-label="User message to analyze"
               />
@@ -351,6 +376,7 @@ function App() {
                 </button>
               </div>
               {analysisError && <p className="scanner-note scanner-error" role="alert">{analysisError}</p>}
+              {isEmailSession && <p className="scanner-note">Email messages stay in memory and are excluded from saved drafts and history. Review the message and click Analyze to start.</p>}
               <p className="scanner-note">Messages are sent to Cloudflare Workers AI. Avoid including passwords or verification codes. AI results can be wrong and are not a guarantee of safety.</p>
             </section>
 

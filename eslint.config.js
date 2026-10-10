@@ -9,7 +9,10 @@ export default [
       globals: {
         Response: "readonly",
         Request: "readonly",
+        Headers: "readonly",
+        TextEncoder: "readonly",
         URL: "readonly",
+        Uint8Array: "readonly",
         console: "readonly",
       },
     },
