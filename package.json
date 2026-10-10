@@ -4,6 +4,8 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
+    "git:pull": "git pull --ff-only origin",
+    "git:push": "git push origin",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint .",

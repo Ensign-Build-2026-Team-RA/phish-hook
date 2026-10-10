@@ -102,7 +102,7 @@ describe("phish-hook Worker", () => {
 
       expect(runMock).toHaveBeenCalledTimes(1);
       const [model, options] = runMock.mock.calls[0];
-      expect(model).toBe("@cf/meta/llama-3.1-8b-instruct");
+      expect(model).toBe("@cf/google/gemma-4-26b-a4b-it");
       expect(options.messages[1].content).toContain(payload.content);
       expect(options.messages[1].content).toContain(payload.sender);
     });
@@ -157,7 +157,7 @@ describe("phish-hook Worker", () => {
       expect(response.status).toBe(200);
       const data = await response.json();
       expect(data.response).toBe(mockAiResponse.response);
-      expect(runMock).toHaveBeenCalledWith("@cf/meta/llama-3.1-8b-instruct", {
+      expect(runMock).toHaveBeenCalledWith("@cf/google/gemma-4-26b-a4b-it", {
         prompt: "Hello",
       });
     });
