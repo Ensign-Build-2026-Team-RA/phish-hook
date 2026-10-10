@@ -1,11 +1,21 @@
 import SecurityDashboard from './SecurityDashboard'
 import { useEffect, useRef, useState } from 'react'
 import { MAX_MESSAGE_LENGTH, readAnalysisFragment } from '../../shared/analysis-link'
+import philBackground from './assets/phil-background-source.png'
+import philDetective from './assets/phil-detective.png'
 import './App.css'
 
-const navItems = ['Home', 'Analyze', 'Dashboard', 'History', 'Safety Guide'] as const
+const navItems = ['Home', 'Safety Guide', 'Dashboard', 'History', 'Analyze'] as const
 
 type NavItem = (typeof navItems)[number]
+
+const navLabels: Record<NavItem, string> = {
+  Home: 'Home',
+  'Safety Guide': 'Training',
+  Dashboard: 'Simulations',
+  History: 'Features',
+  Analyze: 'Spot a Phish',
+}
 
 type HistoryEntry = {
   title: string
@@ -498,47 +508,55 @@ function App() {
 
       case 'Home':
         return (
-          <div className="page-shell">
-            <div className="hero-panel">
-              <div className="hero-copy">
-                <div className="eyebrow">Threat intelligence</div>
-                <h1 className="hero-title">Know when a message is trying to manipulate you.</h1>
-                <p>
-                  Phishing Hook helps people evaluate suspicious emails, texts, and social prompts by surfacing urgency,
-                  impersonation patterns, and coercive language before trust is lost.
-                </p>
-                <button type="button" className="primary-btn" onClick={() => setActivePage('Analyze')}>Try the scanner →</button>
-                <div className="hero-stats" style={{ marginTop: 18 }}>
-                  <span className="stat-pill"><strong>4x</strong> faster review</span>
-                  <span className="stat-pill"><strong>24/7</strong> risk awareness</span>
-                  <span className="stat-pill"><strong>AI</strong> guided checks</span>
-                </div>
+          <main className="landing-page">
+            <section className="phil-hero" aria-labelledby="phil-hero-title">
+              <div className="phil-background" aria-hidden="true">
+                <img src={philBackground} alt="" />
               </div>
 
-              <div className="preview-card">
-                <div className="preview-header">
-                  <span>Current signal</span>
-                  <span>High</span>
+              <svg className="hero-net hero-net-left" viewBox="0 0 620 210" preserveAspectRatio="none" aria-hidden="true">
+                <path d="M0 110C110 12 220 208 330 104S520 10 620 84" />
+                <path d="M0 130C110 32 220 228 330 124S520 30 620 104" />
+                <path d="M0 150C110 52 220 248 330 144S520 50 620 124" />
+                <path d="M0 170C110 72 220 268 330 164S520 70 620 144" />
+                <path d="M28 83C72 121 86 166 80 208M86 57C132 103 147 157 140 210M150 48C190 96 205 154 200 210M220 58C255 104 269 158 266 210M292 75C320 117 335 165 336 210M366 69C396 111 411 161 410 210M442 46C478 91 493 151 486 210M520 40C558 87 574 146 562 205" />
+              </svg>
+
+              <div className="hero-bubbles hero-bubbles-left" aria-hidden="true">
+                <span /><span /><span /><span />
+              </div>
+              <div className="hero-bubbles hero-bubbles-right" aria-hidden="true">
+                <span /><span /><span />
+              </div>
+
+              <div className="phil-hero-inner">
+                <div className="phil-hero-copy">
+                  <div className="hero-kicker">Meet Phil, your online detective</div>
+                  <h1 id="phil-hero-title">Don’t Bite<br />the Hook!</h1>
+                  <p>Learn to spot scams before they catch you with Phil, your trusty online detective.</p>
+
+                  <div className="phil-hero-actions">
+                    <button type="button" className="hero-primary" onClick={() => setActivePage('Safety Guide')}>Start Training Now</button>
+                    <button type="button" className="hero-secondary" onClick={() => setActivePage('Analyze')}>Spot a Phish</button>
+                  </div>
+
+                  <aside className="phil-tip" aria-label="Daily tip from Phil">
+                    <div className="phil-tip-label">Daily tip from Phil</div>
+                    <img src={philDetective} alt="Phil the phishing detective" />
+                    <p>If an email sounds fishy, it probably is. Check the sender!</p>
+                  </aside>
                 </div>
-                <div className="mini-score"><span>62</span></div>
-                <div className="preview-grid">
-                  <div className="preview-row">
-                    <strong>Urgency</strong>
-                    <div className="bar"><span style={{ width: '82%' }} /></div>
-                  </div>
-                  <div className="preview-row">
-                    <strong>Impersonation</strong>
-                    <div className="bar"><span style={{ width: '75%' }} /></div>
-                  </div>
-                  <div className="preview-row">
-                    <strong>Manipulation</strong>
-                    <div className="bar"><span style={{ width: '88%' }} /></div>
-                  </div>
+
+                <div className="phil-hero-art" aria-hidden="true">
+                  <div className="fishbone fishbone-one">&gt;≡≡≡&lt;</div>
+                  <div className="fishbone fishbone-two">&gt;≡≡&lt;</div>
+                  <img src={philDetective} alt="" />
                 </div>
               </div>
-            </div>
+            </section>
 
-            <div className="feature-grid">
+            <section className="page-shell landing-features" aria-label="Phishing Hook features">
+              <div className="feature-grid">
               <article className="feature-card">
                 <div className="feature-icon">⚡</div>
                 <h3>Fast scanning</h3>
@@ -554,8 +572,9 @@ function App() {
                 <h3>Safer decisions</h3>
                 <p>Clarify what is risky, what requires verification, and what should be treated as a cue to pause.</p>
               </article>
-            </div>
-          </div>
+              </div>
+            </section>
+          </main>
         )
 
       case 'Analyze':
@@ -745,7 +764,7 @@ function App() {
             onClick={() => setActivePage('Home')}
           >
             <img src="/favicon-32x32.png" alt="Phishing Hook" className="brand-icon" />
-            <span className="brand-name">Phishing Hook</span>
+            <span className="brand-name"><span>Phishing</span><span>Hook</span></span>
           </button>
 
           <nav className="nav" aria-label="Main navigation">
@@ -764,9 +783,9 @@ function App() {
                 key={item}
                 type="button"
                 onClick={() => setActivePage(item)}
-                className={item === activePage ? 'nav-btn active' : 'nav-btn'}
+                className={`${item === activePage ? 'nav-btn active' : 'nav-btn'}${item === 'Analyze' ? ' nav-cta' : ''}`}
               >
-                {item}
+                {navLabels[item]}
               </button>
             ))}
           </nav>
