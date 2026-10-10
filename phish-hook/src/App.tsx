@@ -376,7 +376,7 @@ function App() {
           : [],
         explanation: typeof (directAnalysis as Record<string, unknown>).explanation === 'string'
           ? (directAnalysis as Record<string, unknown>).explanation as string
-          : 'This message feels scary and urgent, and it asks for a password or code. That is a classic trick used by fake messages.',
+          : 'Review the AI summary and detected flags. Verify unexpected requests through a trusted channel.',
         advice: typeof (directAnalysis as Record<string, unknown>).advice === 'string'
           ? (directAnalysis as Record<string, unknown>).advice as string
           : 'Verify unexpected requests through a trusted channel before responding or following links.',
@@ -384,6 +384,32 @@ function App() {
       setLastAnalyzedInput(nextInputSignature)
       setProgressValue(100)
       setAnalysis(nextAnalysis)
+
+      // Only save successful, valid AI scans from normal (non-email) sessions.
+      // Email-import sessions deliberately remain private and are never persisted.
+      if (!privateEmailSession.current && Number.isFinite(score) && score >= 0 && score <= 100) {
+        try {
+          const storageKey = 'phish-hook-ai-scans'
+          const previous = JSON.parse(window.localStorage.getItem(storageKey) || '[]') as unknown
+          const savedScans = Array.isArray(previous) ? previous : []
+          const newScan = {
+            id: window.crypto.randomUUID(),
+            score: nextAnalysis.score,
+            level: nextAnalysis.level,
+            summary: nextAnalysis.summary,
+            flags: nextAnalysis.flags,
+            preview: textToAnalyze.trim().slice(0, 120),
+            createdAt: new Date().toISOString(),
+          }
+          window.localStorage.setItem(
+            storageKey,
+            JSON.stringify([newScan, ...savedScans].slice(0, 100)),
+          )
+          window.dispatchEvent(new Event('phish-hook-scans-updated'))
+        } catch (storageError) {
+          console.warn('Could not save scan history:', storageError)
+        }
+      }
 
       if (shouldAddToHistory && !privateEmailSession.current) {
         const inputPreview = textToAnalyze.trim()
