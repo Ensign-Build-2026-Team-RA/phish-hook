@@ -296,6 +296,7 @@ function App() {
     setAnalysisError('')
     setRawAiResponse(null)
     setAiModel('')
+    setAnalysis(emptyAnalysis)
 
     try {
       const response = await fetch('/api/analyze', {
@@ -312,6 +313,8 @@ function App() {
         model?: string
         rawModelResponse?: unknown
       }
+      setRawAiResponse(payload.rawModelResponse ?? null)
+      setAiModel(payload.model ?? '')
       if (!response.ok) throw new Error(payload.error || 'AI analysis request failed.')
       if (!payload.analysis) throw new Error('The AI analysis service returned an unexpected response.')
 
@@ -505,11 +508,17 @@ function App() {
 
             {rawAiResponse !== null && (
               <details className="ai-debug-panel" open>
-                <summary>Full AI response · {aiModel}</summary>
+                <summary>Full AI response{aiModel ? ` · ${aiModel}` : ''}</summary>
                 <h3>Raw Cloudflare Workers AI result</h3>
                 <pre>{JSON.stringify(rawAiResponse, null, 2)}</pre>
-                <h3>Normalized assessment shown above</h3>
-                <pre>{JSON.stringify(analysis, null, 2)}</pre>
+                {analysis.advice || analysis.flags.length > 0 ? (
+                  <>
+                    <h3>Normalized assessment shown above</h3>
+                    <pre>{JSON.stringify(analysis, null, 2)}</pre>
+                  </>
+                ) : (
+                  <p>The model returned a result, but the analyzer could not convert it into an assessment.</p>
+                )}
               </details>
             )}
           </div>

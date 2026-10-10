@@ -122,6 +122,8 @@ const normalizeText = (value) => typeof value === 'string' ? value.trim() : ''
 
 const parseModelJson = (result) => {
   const output = result?.response
+    ?? result?.choices?.[0]?.message?.content
+    ?? result?.choices?.[0]?.text
   if (output && typeof output === 'object') return output
   if (typeof output !== 'string') throw new Error('Workers AI returned an empty response.')
 
@@ -181,9 +183,14 @@ const analyzeMessage = async (env, { text, sender = 'Unknown', subject = 'No Sub
     chat_template_kwargs: { enable_thinking: false },
   })
 
-  return {
-    analysis: normalizeAnalysis(parseModelJson(result)),
-    rawModelResponse: result,
+  try {
+    return {
+      analysis: normalizeAnalysis(parseModelJson(result)),
+      rawModelResponse: result,
+    }
+  } catch (error) {
+    if (error instanceof Error) error.rawModelResponse = result
+    throw error
   }
 }
 
@@ -237,7 +244,10 @@ export default {
           temperature: 0.2,
         })
 
-        return jsonResponse({ success: true, analysis: aiResponse.response })
+        return jsonResponse({
+          success: true,
+          analysis: aiResponse.response ?? aiResponse.choices?.[0]?.message?.content ?? aiResponse.choices?.[0]?.text ?? aiResponse,
+        })
       } catch (error) {
         console.error('Workers AI analysis failed:', error?.name || 'UnknownError')
         return jsonResponse({ success: false, error: 'AI analysis is temporarily unavailable. Please try again later.' }, 503)
@@ -361,7 +371,14 @@ export default {
         })
         return jsonResponse({ success: true, analysis, model: AI_MODEL, rawModelResponse })
       } catch (error) {
-        console.error('Workers AI message analysis failed:', error?.name || 'UnknownError')
+        console.error('Workers AI message analysis failed:', error?.name || 'UnknownError', error?.message || 'No error message')
+        if (error?.rawModelResponse !== undefined) {
+          return jsonResponse({
+            error: 'Workers AI returned a response the analyzer could not parse.',
+            model: AI_MODEL,
+            rawModelResponse: error.rawModelResponse,
+          }, 502)
+        }
         return jsonResponse({ error: 'AI analysis is temporarily unavailable. Please try again later.' }, 503)
       }
     }
