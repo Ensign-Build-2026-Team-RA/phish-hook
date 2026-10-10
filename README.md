@@ -247,6 +247,21 @@ npm run deploy
 
 Deployment publishes the Worker and the compiled frontend assets. Email delivery also requires an enabled Email Routing catch-all rule for `phishhook.lol` pointing to the `phish-hook` Worker.
 
+## Team RA
+
+<p align="center">
+  <img src="docs/assets/team-ra-logo.png" alt="Ensign Build 2026 Team RA logo" width="420" />
+</p>
+
+Phishing Hook is built by Ensign Build 2026 Team RA:
+
+- Aaron Smith
+- Ammon Shelley
+- Andre Martinez Vasquez
+- Anil Bolukbasioglu
+- Arthur Santos Rodrigues
+- Reyna Rodriguez Ruiz
+
 ## Cost model
 
 The architecture is designed to operate within Cloudflare's available free allowances for Workers, Workers AI, Workers KV, and Email Routing. Actual limits are account-wide and can change, so check current Cloudflare usage and pricing before production growth or high-volume email use.
