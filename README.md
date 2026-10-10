@@ -265,7 +265,6 @@ Phishing Hook is built by Ensign Build 2026 Team RA:
 - Ammon Shelley
 - Andre Martinez Vasquez
 - Anil Bolukbasioglu
-- Arthur Santos Rodrigues
 - Reyna Rodriguez Ruiz
 
 ## Cost model

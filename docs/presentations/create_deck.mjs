@@ -319,14 +319,13 @@ async function main() {
       'Ammon Shelley',
       'Andre Martinez Vasquez',
       'Anil Bolukbasioglu',
-      'Arthur Santos Rodrigues',
       'Reyna Rodriguez Ruiz',
     ]
-    let y = 256
+    let y = 265
     for (let i = 0; i < names.length; i++) {
       addText(slide, String(i + 1).padStart(2, '0'), { left: 592, top: y, width: 40, height: 26 }, 14, i < 3 ? C.aqua : C.gold, true)
       addText(slide, names[i], { left: 650, top: y - 3, width: 430, height: 34 }, 22, C.warm, true)
-      y += 58
+      y += 62
     }
     addText(slide, 'AI integration · cybersecurity education · user-centered design', { left: 590, top: 617, width: 560, height: 36 }, 18, C.aquaLight, true)
     addNotes(slide, [
@@ -364,7 +363,9 @@ async function main() {
 
   const { finalizePresentation } = await import(pathToFileURL(path.join(SKILL_DIR, 'container_tools', 'artifact_tool_utils.mjs')).href)
   const stagingDir = path.join(BUILD_DIR, '.codex-finalizer')
+  await fs.rm(stagingDir, { recursive: true, force: true })
   await fs.mkdir(stagingDir, { recursive: true })
+  await fs.rm(FINAL_PPTX, { force: true })
   const candidatePath = path.join(stagingDir, 'candidate.pptx')
   await fs.copyFile(draftPath, candidatePath)
 
