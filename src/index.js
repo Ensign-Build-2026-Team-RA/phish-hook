@@ -1,5 +1,6 @@
 const AI_MODEL = '@cf/google/gemma-4-26b-a4b-it'
 import { MAX_MESSAGE_LENGTH } from '../shared/analysis-link.ts'
+import { retrieveEmailBody } from './email-storage.js'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -206,6 +207,8 @@ export default {
     const url = new URL(request.url)
     const hasAssetBinding = !!(env.ASSETS && typeof env.ASSETS.fetch === 'function')
     const hasAiBinding = !!(env.AI && typeof env.AI.run === 'function')
+
+    if (url.pathname === '/api/email-message') return retrieveEmailBody(request, env)
 
     if (request.method === 'OPTIONS') {
       return new Response(null, { headers: corsHeaders })

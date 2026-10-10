@@ -3,19 +3,36 @@
   "name": "phish-hook",
   "main": "src/index.js",
   "compatibility_date": "2026-10-09",
-  "compatibility_flags": ["nodejs_compat"],
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
   "vars": {
     "SITE_URL": "https://phishhook.lol/",
     "RECEIVING_DOMAIN": "phishhook.lol",
-    "REPLY_EMAIL": "report@phishhook.lol"
+    "REPLY_EMAIL": "report@phishhook.lol",
+    "EMAIL_TTL_SECONDS": "86400"
   },
   "assets": {
     "directory": "./phish-hook/dist",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/", "/api/*", "/analyze", "/chat"]
+    "run_worker_first": [
+      "/",
+      "/api/*",
+      "/analyze",
+      "/chat"
+    ]
   },
   "ai": {
     "binding": "AI"
+  },
+  "kv_namespaces": [
+    {
+      "binding": "EMAIL_MESSAGES",
+      "id": "ec47ccacfa0444c9b4a982e13a5c62dd"
+    }
+  ],
+  "observability": {
+    "enabled": false
   }
 }
