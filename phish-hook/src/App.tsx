@@ -5,19 +5,33 @@ const navItems = ['Home', 'Analyze', 'History', 'Safety Guide'] as const
 
 type NavItem = (typeof navItems)[number]
 
-const signals = [
-  { label: 'Fake News', value: 8, icon: '📰' },
-  { label: 'Scam Risk', value: 57, icon: '🚨' },
-  { label: 'Harassment', value: 8, icon: '🚩' },
-  { label: 'Manipulation', value: 57, icon: '🎭' },
+type Assessment = { score: number; level: 'Low' | 'Moderate' | 'High'; flags: string[]; advice: string }
+
+const examples = [
+  { name: 'Bank alert', text: 'URGENT: Your bank account will be suspended. Verify your password now at https://bank-verify.example/login' },
+  { name: 'Delivery notice', text: 'Your package could not be delivered. Pay a redelivery fee at https://delivery-check.example' },
+  { name: 'Normal message', text: 'Hey, are we still meeting at the library tomorrow at 3 PM?' },
 ]
 
-const flags = [
-  'Urgent language detected',
-  'Suspicious link or click request',
-  'Possible phishing attempt',
-  'Emotional manipulation',
-]
+function assessMessage(text: string): Assessment {
+  const checks = [
+    { match: /urgent|immediately|within 24 hours|act now|last chance|suspended|closed/i, flag: 'Pressure or urgency', points: 25 },
+    { match: /https?:\/\/|www\./i, flag: 'Contains a link — verify the destination independently', points: 15 },
+    { match: /password|login|credentials|verification code|one.time passcode|otp/i, flag: 'Requests sensitive account information', points: 35 },
+    { match: /pay|payment|fee|transfer|gift card|bank account/i, flag: 'Financial request or payment language', points: 20 },
+    { match: /click here|verify your|confirm your|update your account/i, flag: 'Asks you to follow an account-verification instruction', points: 20 },
+  ]
+  const matched = checks.filter(check => check.match.test(text))
+  const score = Math.min(100, matched.reduce((sum, check) => sum + check.points, 0))
+  const level = score >= 60 ? 'High' : score >= 25 ? 'Moderate' : 'Low'
+  return {
+    score, level,
+    flags: matched.map(check => check.flag),
+    advice: score >= 25
+      ? 'Do not follow links or share information. Contact the organization using an official website, app, or known phone number.'
+      : 'No strong indicators matched these basic rules. Still verify unexpected requests; a low score does not guarantee safety.',
+  }
+}
 
 const historyRows = [
   { title: 'Bank impersonation attempt', state: 'High risk · 2 hours ago' },
@@ -63,6 +77,22 @@ const guideItems = [
 
 function App() {
   const [activePage, setActivePage] = useState<NavItem>('Home')
+  const [message, setMessage] = useState('')
+  const [result, setResult] = useState<Assessment | null>(null)
+  const [submitted, setSubmitted] = useState('')
+  const [scanning, setScanning] = useState(false)
+
+  const analyze = () => {
+    if (!message.trim() || scanning) return
+    setScanning(true)
+    setResult(null)
+    // A short animation for the demo. The analysis itself runs locally in the browser.
+    window.setTimeout(() => {
+      setSubmitted(message.trim())
+      setResult(assessMessage(message.trim()))
+      setScanning(false)
+    }, 650)
+  }
 
   const renderPage = () => {
     switch (activePage) {
@@ -74,10 +104,11 @@ function App() {
                 <div className="eyebrow">Threat intelligence</div>
                 <h1 className="hero-title">Know when a message is trying to manipulate you.</h1>
                 <p>
-                  Truth Lens helps people evaluate suspicious emails, texts, and social prompts by surfacing urgency,
+                  PhishHook helps people evaluate suspicious emails, texts, and social prompts by surfacing urgency,
                   impersonation patterns, and coercive language before trust is lost.
                 </p>
-                <div className="hero-stats">
+                <button type="button" className="primary-btn" onClick={() => setActivePage('Analyze')}>Try the scanner →</button>
+                <div className="hero-stats" style={{ marginTop: 18 }}>
                   <span className="stat-pill"><strong>4x</strong> faster review</span>
                   <span className="stat-pill"><strong>24/7</strong> risk awareness</span>
                   <span className="stat-pill"><strong>AI</strong> guided checks</span>
@@ -115,8 +146,8 @@ function App() {
               </article>
               <article className="feature-card">
                 <div className="feature-icon">🧠</div>
-                <h3>AI-informed logic</h3>
-                <p>Signal-based assessment highlights suspicious patterns and manipulative language.</p>
+                <h3>Explainable indicators</h3>
+                <p>Rule-based demo assessment highlights suspicious patterns and manipulative language.</p>
               </article>
               <article className="feature-card">
                 <div className="feature-icon">🛡️</div>
@@ -128,89 +159,76 @@ function App() {
         )
 
       case 'Analyze':
-        return (
-          <div className="page-shell">
-            <div className="headline-row">
-              <div className="eyebrow">ANALYSIS COMPLETE</div>
-              <div className="headline-actions">
-                <button type="button" className="secondary-btn">Share</button>
-                <button type="button" className="primary-btn">Analyze Again</button>
-              </div>
-            </div>
-
-            <h1 className="report-title">Safety Report</h1>
-
-            <section className="report-card">
-              <div className="report-card-inner">
-                <div className="score-wrap">
-                  <div className="score-ring" aria-label="Risk score 48 out of 100">
-                    <span>48</span>
-                  </div>
-                </div>
-
-                <div className="report-content">
-                  <div className="risk-tag">High</div>
-                  <div className="risk-label">Scam / Phishing / Emotional Manipulation</div>
-                  <h2>Risk Assessment</h2>
-                  <p>Based on AI analysis of your submitted content, here&apos;s what we found.</p>
-
-                  <div className="preview-label">Analyzed content preview</div>
-                  <div className="preview-box">
-                    <p>
-                      &quot;Urgent: Your DBS bank account has been temporarily suspended due to suspicious activity.
-                      To restore access, click this link immediately: http://dbs-secure-verify.xyz and enter your
-                      banking credentials within 24 hours or your account will be permanently closed. Call 8001-XXXX if you need help.&quot;
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            <section className="signal-grid">
-              {signals.slice(0, 2).map((signal) => (
-                <div key={signal.label} className="signal-item">
-                  <div className="signal-left">
-                    <span className="signal-icon" aria-hidden="true">{signal.icon}</span>
-                    <span>{signal.label}</span>
-                  </div>
-                  <span className="signal-value">{signal.value}</span>
-                </div>
-              ))}
-            </section>
-
-            <section className="signal-grid lower-grid">
-              {signals.slice(2).map((signal) => (
-                <div key={signal.label} className="signal-item">
-                  <div className="signal-left">
-                    <span className="signal-icon" aria-hidden="true">{signal.icon}</span>
-                    <span>{signal.label}</span>
-                  </div>
-                  <span className="signal-value">{signal.value}</span>
-                </div>
-              ))}
-            </section>
-
-            <section className="flag-panel">
-              <div className="flag-header">Detected Flags</div>
-              <div className="flag-list">
-                {flags.map((flag) => (
-                  <span key={flag} className="flag-badge">
-                    {flag}
-                  </span>
-                ))}
-              </div>
-            </section>
-          </div>
-        )
+         return (
+           <div className="page-shell">
+             <div className="eyebrow">Interactive message scanner</div>
+             <h1 className="report-title">Analyze a message</h1>
+             <section className="scanner-panel">
+               <label htmlFor="scan-input" className="scanner-label">Paste a suspicious SMS, email, or DM</label>
+               <textarea
+                 id="scan-input"
+                 className="scanner-input"
+                 value={message}
+                 maxLength={5000}
+                 onChange={event => { setMessage(event.target.value); setResult(null) }}
+                 placeholder="Paste a message here. Avoid including passwords or other sensitive information."
+                 rows={6}
+               />
+               <div className="sample-row">
+                 {examples.map(example => (
+                   <button type="button" className="secondary-btn" key={example.name}
+                     onClick={() => { setMessage(example.text); setResult(null) }}>
+                     {example.name}
+                   </button>
+                 ))}
+               </div>
+               <button type="button" className="primary-btn scan-button"
+                 disabled={!message.trim() || scanning} onClick={analyze}>
+                 {scanning ? 'Scanning message…' : '🔍 Scan for Threats'}
+               </button>
+               <p className="scanner-note">Demo mode: local, rule-based indicators — not AI, not a guarantee of safety. Message text is not sent to a server by this scanner.</p>
+             </section>
+             {result && (
+               <section className="report-card scanner-results" aria-live="polite">
+                 <div className="report-card-inner">
+                   <div className="score-wrap">
+                     <div className="score-ring" style={{ background: `conic-gradient(${result.level === 'High' ? '#ff7a7a' : result.level === 'Moderate' ? '#ffca4d' : '#6ee7a7'} 0 ${result.score}%, rgba(255,255,255,.08) ${result.score}% 100%)` }}
+                       aria-label={`Demo indicator score ${result.score} out of 100`}>
+                       <span>{result.score}</span>
+                     </div>
+                   </div>
+                   <div className="report-content">
+                     <div className="risk-tag">{result.level} indicators</div>
+                     <div className="risk-label">Illustrative heuristic score / 100</div>
+                     <h2>Safety Report</h2>
+                     <p>This score measures matched warning signs; it is not a probability of fraud.</p>
+                     <div className="preview-label">Submitted message</div>
+                     <div className="preview-box"><p className="submitted-message">{submitted}</p></div>
+                   </div>
+                 </div>
+                 <div className="flag-panel">
+                   <div className="flag-header">Detected warning signs</div>
+                   <div className="flag-list">
+                     {result.flags.length ? result.flags.map(flag => <span className="flag-badge" key={flag}>{flag}</span>) : <p>No basic rule matched.</p>}
+                   </div>
+                 </div>
+                 <div className="flag-panel">
+                   <div className="flag-header">Recommended next step</div>
+                   <p>{result.advice}</p>
+                 </div>
+               </section>
+             )}
+           </div>
+         )
 
       case 'History':
         return (
           <div className="page-shell">
             <div className="section-header-row">
-              <div className="eyebrow">Recent assessments</div>
+              <div className="eyebrow">Illustrative history examples</div>
               <button type="button" className="primary-btn small-btn">New Analysis</button>
             </div>
-            <h1 className="report-title">History</h1>
+            <h1 className="report-title">History (demo examples)</h1>
 
             <section className="list-panel">
               <div className="history-list">
@@ -258,9 +276,9 @@ function App() {
     <div className="app-shell">
       <header className="topbar">
         <div className="topbar-inner">
-          <div className="brand" aria-label="Truth Lens home">
+          <div className="brand" aria-label="PhishHook home">
             <span className="brand-mark" aria-hidden="true" />
-            <span className="brand-name">Truth Lens</span>
+            <span className="brand-name">PhishHook</span>
           </div>
 
           <nav className="nav" aria-label="Main navigation">
