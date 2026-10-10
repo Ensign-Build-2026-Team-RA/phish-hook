@@ -8,7 +8,7 @@
     "test:watch": "vitest",
     "lint": "eslint .",
     "dev": "wrangler dev",
-    "build": "wrangler deploy --dry-run",
+    "build": "npm ci --prefix phish-hook && npm run build --prefix phish-hook && wrangler deploy --dry-run",
     "deploy": "wrangler deploy"
   },
   "devDependencies": {

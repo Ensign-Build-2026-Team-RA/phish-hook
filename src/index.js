@@ -75,6 +75,10 @@ export default {
     }
 
     if (url.pathname === '/' && request.method === 'GET') {
+      return env.ASSETS.fetch(request)
+    }
+
+    if (url.pathname === '/api/docs' && request.method === 'GET') {
       return new Response(JSON.stringify({
         name: 'phish-hook',
         description: 'Phishing analysis API',

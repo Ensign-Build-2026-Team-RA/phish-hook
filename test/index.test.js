@@ -6,6 +6,11 @@ describe("phish-hook Worker", () => {
     AI: {
       run: runMock,
     },
+    ASSETS: {
+      fetch: vi.fn(async () => new Response('<!doctype html><div id="root"></div>', {
+        headers: { 'Content-Type': 'text/html;charset=UTF-8' },
+      })),
+    },
   });
 
   describe("CORS preflight", () => {
@@ -23,7 +28,7 @@ describe("phish-hook Worker", () => {
   });
 
   describe("GET /", () => {
-    it("returns API documentation and endpoints info", async () => {
+    it("serves the interactive site", async () => {
       const request = new Request("http://localhost/", {
         method: "GET",
       });
@@ -31,8 +36,22 @@ describe("phish-hook Worker", () => {
       const response = await worker.fetch(request, env, {});
 
       expect(response.status).toBe(200);
-      expect(response.headers.get("Content-Type")).toBe("application/json");
+      expect(response.headers.get("Content-Type")).toContain("text/html");
+      expect(await response.text()).toContain('id="root"');
+      expect(env.ASSETS.fetch).toHaveBeenCalledWith(request);
+    });
+  });
 
+  describe("GET /api/docs", () => {
+    it("returns API documentation and endpoints info", async () => {
+      const request = new Request("http://localhost/api/docs", {
+        method: "GET",
+      });
+      const env = createMockEnv();
+      const response = await worker.fetch(request, env, {});
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get("Content-Type")).toBe("application/json");
       const body = await response.json();
       expect(body.name).toBe("phish-hook");
       expect(body.endpoints).toBeDefined();
