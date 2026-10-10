@@ -349,7 +349,7 @@ function App() {
           : [],
         explanation: typeof (directAnalysis as Record<string, unknown>).explanation === 'string'
           ? (directAnalysis as Record<string, unknown>).explanation as string
-          : 'This message feels scary and urgent, and it asks for a password or code. That is a classic trick used by fake messages.',
+          : 'Review the AI summary and detected flags above. Verify unexpected requests through a trusted channel.',
         advice: typeof (directAnalysis as Record<string, unknown>).advice === 'string'
           ? (directAnalysis as Record<string, unknown>).advice as string
           : 'Verify unexpected requests through a trusted channel before responding or following links.',
