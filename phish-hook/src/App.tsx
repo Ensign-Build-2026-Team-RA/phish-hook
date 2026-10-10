@@ -12,21 +12,132 @@ type HistoryEntry = {
   content: string
 }
 
-const threatExampleText = 'Example: Urgent: your bank account has been temporarily suspended. Click the link to restore access immediately.'
+const threatExampleText = 'Example: Hi! Your account is locked. Click here now to fix it and enter your password and code before it closes.'
+
+const owaspTop10Sample = `Hi! Your account is locked. We need you to click this link right now to fix it. If you do not act fast, your account will be closed. Please enter your password and the one-time code we send you. This is the real security team and it is very important.`
+
+const buildAnalysis = (content: string, imagePresent: boolean) => {
+  const normalized = content.toLowerCase()
+  const owaspChecks = [
+    {
+      id: 'A01',
+      label: 'Broken Access Control',
+      keywords: ['recover access', 'verify account', 'restore access', 'account suspended', 'locked account', 'security alert'],
+      icon: '🚧',
+    },
+    {
+      id: 'A02',
+      label: 'Cryptographic Failures',
+      keywords: ['password', 'otp', 'one-time code', 'verification code', 'secret code', 'mfa', 'sms code'],
+      icon: '🔐',
+    },
+    {
+      id: 'A03',
+      label: 'Injection',
+      keywords: ['click here', 'open this link', 'follow the link', 'redirect', 'download now', 'submit form'],
+      icon: '🧪',
+    },
+    {
+      id: 'A04',
+      label: 'Insecure Design',
+      keywords: ['urgent', 'immediately', 'act now', 'today only', 'within 24 hours', 'final notice'],
+      icon: '🧠',
+    },
+    {
+      id: 'A05',
+      label: 'Security Misconfiguration',
+      keywords: ['official', 'bank', 'paypal', 'microsoft', 'apple', 'security team', 'customer support'],
+      icon: '⚙️',
+    },
+    {
+      id: 'A06',
+      label: 'Vulnerable Components',
+      keywords: ['legacy portal', 'outdated app', 'unsupported browser', 'expired certificate', 'old version'],
+      icon: '🧰',
+    },
+    {
+      id: 'A07',
+      label: 'Authentication Failures',
+      keywords: ['verify your identity', 'confirm login', 'reset your password', 'sign in to continue', 'account recovery'],
+      icon: '🪪',
+    },
+    {
+      id: 'A08',
+      label: 'Integrity Failures',
+      keywords: ['invoice', 'payment required', 'wire transfer', 'payment update', 'tax refund', 'important document'],
+      icon: '📦',
+    },
+    {
+      id: 'A09',
+      label: 'Logging & Monitoring',
+      keywords: ['ignore this warning', 'do not share', 'keep this private', 'no need to contact support', 'confidential alert'],
+      icon: '📊',
+    },
+    {
+      id: 'A10',
+      label: 'Unsafe URL / SSRF Risk',
+      keywords: ['http://', 'https://', 'click the link', 'visit the portal', 'open the form', 'secure portal'],
+      icon: '🔗',
+    },
+  ]
+
+  const matchedChecks = owaspChecks
+    .map((check) => ({
+      ...check,
+      value: Math.min(99, 22 + check.keywords.filter((term) => normalized.includes(term)).length * 17),
+      matches: check.keywords.filter((term) => normalized.includes(term)),
+    }))
+    .filter((check) => check.matches.length > 0)
+
+  const averageMatchScore = matchedChecks.reduce((total, check) => total + check.value, 0) / Math.max(matchedChecks.length, 1)
+  const score = Math.min(
+    99,
+    Math.max(
+      12,
+      Math.round(30 + averageMatchScore * 0.75 + (imagePresent ? 8 : 0)),
+    ),
+  )
+
+  const risk = matchedChecks.length >= 3 || score >= 68 ? 'High' : score >= 45 ? 'Moderate' : 'Low'
+  const flags = matchedChecks.length
+    ? matchedChecks.slice(0, 4).map((check) => `OWASP ${check.id}: ${check.label}`)
+    : ['OWASP A09: Security logging and monitoring gaps not detected']
+
+  const explanation = matchedChecks.length
+    ? `This is a sneaky trap. It says to hurry, it scares you, and it asks for a password or code. That is a big red flag. Real companies do not usually ask for secret information in a scary message like this.`
+    : 'This does not look super scary yet, but if it asks for a password, code, or quick action, it is still smart to double-check using a trusted app or website.'
+
+  return {
+    score,
+    level: risk,
+    summary:
+      matchedChecks.length > 0
+        ? `OWASP Top 10 review found ${matchedChecks.length} high-risk web application patterns consistent with phishing manipulation and account abuse.`
+        : 'OWASP Top 10 review did not detect clear phishing patterns in the provided content.',
+    flags,
+    explanation,
+    advice: matchedChecks.length
+      ? 'This message appears to match multiple OWASP phishing patterns. Verify the sender via a trusted channel before acting on any request.'
+      : 'No obvious malicious pattern was detected, but the request still deserves caution if it asks for credentials or urgent action.',
+  }
+}
 
 type Analysis = {
   score: number
   level: 'Low' | 'Moderate' | 'High'
   summary: string
   flags: string[]
+  explanation: string
   advice: string
 }
 
 const emptyAnalysis: Analysis = {
+  ...buildAnalysis('', false),
   score: 0,
   level: 'Low',
   summary: 'Paste a message to start the phishing assessment.',
   flags: [],
+  explanation: 'Waiting for content to review. The explanation will appear here once the scan completes.',
   advice: '',
 }
 
@@ -80,7 +191,7 @@ function App() {
     }
 
     const savedTheme = window.localStorage.getItem('phish-hook-theme')
-    return savedTheme === 'dark' || savedTheme === 'light' ? savedTheme : 'light'
+    return savedTheme === 'dark' || savedTheme === 'light' ? savedTheme : 'dark'
   })
   const [draftInput, setDraftInput] = useState(() => {
     if (typeof window === 'undefined') {
@@ -128,6 +239,7 @@ function App() {
   const displaySummary = isPendingScore
     ? 'Paste a message to start the phishing assessment.'
     : analysis.summary
+  const totalScoreText = `${displayScore}/100`
   useEffect(() => {
     if (typeof window !== 'undefined') {
       window.localStorage.setItem('phish-hook-page', activePage)
@@ -201,23 +313,53 @@ function App() {
         body: JSON.stringify({ text: textToAnalyze }),
       })
 
-      const payload = await response.json() as {
-        analysis?: Analysis
-        error?: string
-        model?: string
-        rawModelResponse?: unknown
+      const responseText = await response.text()
+      let payload: Record<string, unknown> = {}
+
+      if (responseText) {
+        try {
+          payload = JSON.parse(responseText) as Record<string, unknown>
+        } catch {
+          payload = { error: 'The analysis service returned an invalid JSON response.' }
+        }
+      }
+
+      if (!response.ok) {
+        throw new Error(typeof payload.error === 'string' ? payload.error : `AI analysis request failed (${response.status}).`)
+      }
+
+      const directAnalysis = payload.analysis ?? payload
+      if (!directAnalysis || typeof directAnalysis !== 'object') {
+        throw new Error('The AI analysis service returned an unexpected response.')
+      }
+
+      const score = Number((directAnalysis as Record<string, unknown>).score)
+      const risk = (directAnalysis as Record<string, unknown>).level
+        ?? (directAnalysis as Record<string, unknown>).risk
+      const nextAnalysis: Analysis = {
+        score: Number.isFinite(score) ? score : 0,
+        level: typeof risk === 'string'
+          ? risk as Analysis['level']
+          : 'Low',
+        summary: typeof (directAnalysis as Record<string, unknown>).summary === 'string'
+          ? (directAnalysis as Record<string, unknown>).summary as string
+          : 'The analysis service returned a result without a summary.',
+        flags: Array.isArray((directAnalysis as Record<string, unknown>).flags)
+          ? ((directAnalysis as Record<string, unknown>).flags as unknown[]).filter((flag): flag is string => typeof flag === 'string')
+          : [],
+        explanation: typeof (directAnalysis as Record<string, unknown>).explanation === 'string'
+          ? (directAnalysis as Record<string, unknown>).explanation as string
+          : 'This message feels scary and urgent, and it asks for a password or code. That is a classic trick used by fake messages.',
+        advice: typeof (directAnalysis as Record<string, unknown>).advice === 'string'
+          ? (directAnalysis as Record<string, unknown>).advice as string
+          : 'Verify unexpected requests through a trusted channel before responding or following links.',
       }
       setRawAiResponse(payload.rawModelResponse ?? null)
-      setAiModel(payload.model ?? '')
-      if (!response.ok) throw new Error(payload.error || 'AI analysis request failed.')
-      if (!payload.analysis) throw new Error('The AI analysis service returned an unexpected response.')
+      setAiModel(typeof payload.model === 'string' ? payload.model : '')
 
-      const nextAnalysis = payload.analysis
       setLastAnalyzedInput(nextInputSignature)
       setProgressValue(100)
       setAnalysis(nextAnalysis)
-      setRawAiResponse(payload.rawModelResponse ?? payload)
-      setAiModel(payload.model ?? 'Unknown model')
 
       if (shouldAddToHistory) {
         const inputPreview = textToAnalyze.trim()
@@ -230,6 +372,14 @@ function App() {
       }
     } catch (error) {
       setAnalysisError(error instanceof Error ? error.message : 'AI analysis failed. Please try again.')
+      setAnalysis((current) => current.score > 0 ? current : {
+        score: 0,
+        level: 'Low',
+        summary: 'The analysis service returned no usable data. Please try again.',
+        flags: ['Service response empty'],
+        explanation: 'The message could not be scored because the service returned incomplete data, so the result is currently inconclusive and should be rechecked.',
+        advice: 'Try again in a moment or paste a shorter message to re-run the check.',
+      })
     } finally {
       setIsAnalyzing(false)
     }
@@ -237,6 +387,11 @@ function App() {
 
   const handleAnalyze = () => {
     void runAnalysis(draftInput, true)
+  }
+
+  const loadOwaspTop10Test = () => {
+    setDraftInput(owaspTop10Sample)
+    setLastAnalyzedInput('')
   }
 
   const handleHistoryReplay = (row: HistoryEntry) => {
@@ -346,6 +501,7 @@ function App() {
               />
 
               <div className="analysis-actions">
+                <button type="button" className="secondary-btn" onClick={loadOwaspTop10Test}>Load OWASP Top 10 Test</button>
                 <button type="button" className="primary-btn" onClick={handleAnalyze} disabled={isRunDisabled}>
                   {isAnalyzing ? 'Analyzing...' : 'Analyze with Cloudflare AI'}
                 </button>
@@ -375,10 +531,20 @@ function App() {
                 </div>
 
                 <div className="report-content">
+                  <div className="score-total-badge">
+                    <span>Total score</span>
+                    <strong>{totalScoreText}</strong>
+                  </div>
                   <div className="risk-tag">{displayRisk}</div>
                   <div className="risk-label">Phishing and social-engineering review</div>
                   <h2>Risk Assessment</h2>
+                  <div className="preview-label">Summary</div>
                   <p>{displaySummary}</p>
+
+                  <div className="why-risk-panel">
+                    <div className="preview-label">Why this is risky</div>
+                    <p>{analysis.explanation}</p>
+                  </div>
 
                   <div className="preview-label">Analyzed content preview</div>
                   <div className="preview-box">
