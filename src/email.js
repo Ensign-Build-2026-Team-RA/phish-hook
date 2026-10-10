@@ -1,7 +1,8 @@
 import PostalMime from 'postal-mime'
 import { createMimeMessage } from 'mimetext'
 import { compile } from 'html-to-text'
-import { createAnalysisLink } from '../shared/analysis-link.ts'
+import { createAnalysisLink, createTokenAnalysisLink, MAX_MESSAGE_LENGTH } from '../shared/analysis-link.ts'
+import { storeEmailBody } from './email-storage.js'
 
 export const MAX_RAW_EMAIL_BYTES = 64 * 1024
 
@@ -44,11 +45,13 @@ async function readBoundedEmail(message) {
   return raw
 }
 
-export async function prepareEmailReply(message, siteUrl) {
-  const normalLink = createAnalysisLink(siteUrl)
+export async function prepareEmailReply(message, env) {
+  const normalLink = createAnalysisLink(env.SITE_URL)
   if (!normalLink) throw new Error('The configured site URL is too long.')
   let link = normalLink
   let explanation
+  let storedKey
+  let storedHours
   try {
     const raw = await readBoundedEmail(message)
     if (raw === null) {
@@ -59,13 +62,23 @@ export async function prepareEmailReply(message, siteUrl) {
         explanation = 'This email contains attachments, including possibly inline images. Attachments cannot be included in an analysis link, so no content was included or silently discarded. Open the page and paste the relevant message text manually; the scanner does not analyze attachments.'
       } else {
         const body = parsed.text?.trim() ? parsed.text : parsed.html ? htmlToText(parsed.html) : ''
-        const prefilledLink = body.trim() ? createAnalysisLink(siteUrl, body) : null
-        if (prefilledLink) {
-          link = prefilledLink
-          explanation = 'Your email body is prefilled when you open this link. Review it, then click Analyze with Cloudflare AI. Opening the link does not start an analysis.'
+        if (body.trim() && body.length <= MAX_MESSAGE_LENGTH) {
+          try {
+            const stored = await storeEmailBody(env, body)
+            storedKey = stored.key
+            storedHours = stored.ttlSeconds / 3600
+            link = createTokenAnalysisLink(env.SITE_URL, stored.token)
+            explanation = `Your email body is prefilled when you open this link. The link expires after ${storedHours} hour${storedHours === 1 ? '' : 's'}. Review it, then click Analyze with Cloudflare AI. Opening the link does not start an analysis.`
+          } catch {
+            if (storedKey) {
+              try { await env.EMAIL_MESSAGES.delete(storedKey) } catch { /* Expiration still removes the entry. */ }
+              storedKey = undefined
+            }
+            explanation = 'Temporary email link storage is unavailable. No message content was included in the link. Open the page and paste the message manually.'
+          }
         } else {
           explanation = body.trim()
-            ? 'The complete message is too large for a safe email link or exceeds the page\'s 5,000 character limit. No content was included or truncated. Open the page and paste the text manually within that limit.'
+            ? 'The complete message exceeds the page\'s 5,000 character limit. No content was stored or truncated. Open the page and paste the text manually within that limit.'
             : 'No readable plain text or HTML body was found. Open the page and paste the message manually.'
         }
       }
@@ -74,8 +87,11 @@ export async function prepareEmailReply(message, siteUrl) {
     // Parser exceptions can contain email contents. Never log or expose them.
     explanation = 'This email could not be read safely. No content was included in the link. Open the page and paste the message manually.'
   }
-  const text = `Open Analyse Message:\n${link}\n\n${explanation}\n\nWe do not save incoming email contents. Treat a prefilled link as private: anyone with the link can read its message. The message is carried in the URL fragment, which is not sent to the website server. The page keeps imported messages in memory. Only clicking Analyze sends the message to Cloudflare Workers AI.`
-  return { link, text }
+  const privacy = storedKey
+    ? `Only your parsed message body is temporarily stored for ${storedHours} hour${storedHours === 1 ? '' : 's'} and then expires automatically. The link contains a random token, not your email text. Anyone with this link can read the message until it expires.`
+    : 'No message content is stored for this link.'
+  const text = `Open Analyse Message:\n${link}\n\n${explanation}\n\n${privacy} Sender addresses, subjects and attachments are not stored. Imported messages are excluded from browser drafts and history. Only clicking Analyze sends the reviewed message to Cloudflare Workers AI.`
+  return { link, text, storedKey }
 }
 
 const validAddress = (address) => typeof address === 'string' && /^[^\s<>@]+@[^\s<>@]+$/.test(address)
@@ -106,18 +122,24 @@ export async function handleEmail(message, env, EmailMessage) {
     message.setReject('A valid Message-ID is required for an email reply.')
     return
   }
+  let storedKey
   try {
-    const { text } = await prepareEmailReply(message, env.SITE_URL)
+    const prepared = await prepareEmailReply(message, env)
+    storedKey = prepared.storedKey
     const reply = createMimeMessage()
     reply.setSender(env.REPLY_EMAIL)
     reply.setRecipient(message.from)
     reply.setSubject('Your Phishing Hook analysis link')
     reply.setHeader('In-Reply-To', messageId)
+    reply.setHeader('References', messageId)
     reply.setHeader('Auto-Submitted', 'auto-replied')
-    reply.addMessage({ contentType: 'text/plain', data: text })
+    reply.addMessage({ contentType: 'text/plain', data: prepared.text })
     // Email Routing replies use the inbound event; no paid Email Sending binding.
     await message.reply(new EmailMessage(env.REPLY_EMAIL, message.from, reply.asRaw()))
   } catch {
+    if (storedKey) {
+      try { await env.EMAIL_MESSAGES.delete(storedKey) } catch { /* Expiration still removes the entry. */ }
+    }
     message.setReject('The analysis reply could not be sent. Please use the website directly.')
   }
 }

@@ -188,6 +188,9 @@ function App() {
   const [emailPrefill] = useState(() => typeof window === 'undefined' ? null : readAnalysisFragment(window.location.hash))
   const privateEmailSession = useRef(emailPrefill !== null)
   const [isEmailSession, setIsEmailSession] = useState(emailPrefill !== null)
+  const [emailToken, setEmailToken] = useState<string | null>(null)
+  const [emailLoadAttempt, setEmailLoadAttempt] = useState(0)
+  const [isLoadingEmail, setIsLoadingEmail] = useState(Boolean(emailPrefill?.token))
   const [activePage, setActivePage] = useState<NavItem>(emailPrefill ? 'Analyze' : 'Home')
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     if (typeof window === 'undefined') {
@@ -232,8 +235,8 @@ function App() {
 
   const hasInput = draftInput.trim().length > 0
   const currentInputSignature = draftInput.trim()
-  const isRunDisabled = isAnalyzing || !hasInput || currentInputSignature === lastAnalyzedInput
-  const isAnalyzeAgainDisabled = isAnalyzing || !hasInput
+  const isRunDisabled = isLoadingEmail || isAnalyzing || !hasInput || currentInputSignature === lastAnalyzedInput
+  const isAnalyzeAgainDisabled = isLoadingEmail || isAnalyzing || !hasInput
   const isPendingScore = !isAnalyzing && progressValue === 0
   const scoreRingProgress = Math.min(100, Math.max(0, progressValue))
   const scoreRingStyle = {
@@ -253,18 +256,55 @@ function App() {
       setIsEmailSession(true)
       setActivePage('Analyze')
       setDraftInput(prefill.message)
+      setEmailToken(prefill.token ?? null)
+      setIsLoadingEmail(Boolean(prefill.token))
+      setEmailLoadAttempt(0)
       setAnalysisError(prefill.error)
       setLastAnalyzedInput('')
       setAnalysis(emptyAnalysis)
       setRawAiResponse(null)
       setProgressValue(0)
-      // Remove the email from the current browser history entry after importing it.
+      // Remove the private token (or legacy message) from browser history.
       window.history.replaceState(null, '', window.location.pathname + window.location.search)
     }
     consumeFragment()
     window.addEventListener('hashchange', consumeFragment)
     return () => window.removeEventListener('hashchange', consumeFragment)
   }, [])
+  useEffect(() => {
+    if (!emailToken) return
+    const controller = new AbortController()
+    const loadEmail = async () => {
+      setIsLoadingEmail(true)
+      setAnalysisError('')
+      try {
+        const response = await fetch('/api/email-message', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: emailToken }),
+          cache: 'no-store',
+          credentials: 'omit',
+          referrerPolicy: 'no-referrer',
+          signal: controller.signal,
+        })
+        const result = await response.json()
+        if (controller.signal.aborted) return
+        if (!response.ok) {
+          setAnalysisError(typeof result.error === 'string' ? result.error : 'This email link is unavailable. Please retry or paste the message manually.')
+        } else if (typeof result.message !== 'string' || !result.message.trim() || result.message.length > MAX_MESSAGE_LENGTH) {
+          setAnalysisError('This email link could not be read safely. Paste the message manually.')
+        } else {
+          setDraftInput(result.message)
+        }
+      } catch {
+        if (!controller.signal.aborted) setAnalysisError('The email link could not be loaded. Check your connection and retry.')
+      } finally {
+        if (!controller.signal.aborted) setIsLoadingEmail(false)
+      }
+    }
+    void loadEmail()
+    return () => controller.abort()
+  }, [emailToken, emailLoadAttempt])
   useEffect(() => {
     if (typeof window !== 'undefined') {
       window.localStorage.setItem('phish-hook-page', activePage)
@@ -544,6 +584,7 @@ function App() {
 
               <textarea
                 value={draftInput}
+                disabled={isLoadingEmail}
                 onChange={(event) => setDraftInput(event.target.value)}
                 maxLength={MAX_MESSAGE_LENGTH}
                 placeholder={threatExampleText}
@@ -551,13 +592,15 @@ function App() {
               />
 
               <div className="analysis-actions">
-                <button type="button" className="secondary-btn" onClick={loadOwaspTop10Test}>Load OWASP Top 10 Test</button>
+                <button type="button" className="secondary-btn" onClick={loadOwaspTop10Test} disabled={isLoadingEmail}>Load OWASP Top 10 Test</button>
                 <button type="button" className="primary-btn" onClick={handleAnalyze} disabled={isRunDisabled}>
                   {isAnalyzing ? 'Analyzing...' : 'Analyze with Cloudflare AI'}
                 </button>
               </div>
               {analysisError && <p className="scanner-note scanner-error" role="alert">{analysisError}</p>}
-              {isEmailSession && <p className="scanner-note">Email messages stay in memory and are excluded from saved drafts and history. Review the message and click Analyze to start.</p>}
+              {isLoadingEmail && <p className="scanner-note" role="status">Loading your emailed message...</p>}
+              {emailToken && analysisError && !isLoadingEmail && <button type="button" className="secondary-btn" onClick={() => setEmailLoadAttempt(attempt => attempt + 1)}>Retry loading email</button>}
+              {isEmailSession && <p className="scanner-note">Emailed links temporarily store the message until the link expires. Imported messages are excluded from saved drafts and history. Review the message and click Analyze to start.</p>}
               <p className="scanner-note">Messages are sent to Cloudflare Workers AI. Avoid including passwords or verification codes. AI results can be wrong and are not a guarantee of safety.</p>
             </section>
 
