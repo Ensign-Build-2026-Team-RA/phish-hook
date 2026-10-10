@@ -5,6 +5,18 @@ that same tab and textarea using `https://phishhook.lol/#analyze?t=<token>`.
 `#analyze` opens the same page without a prefill. There is no new analysis page and
 no automatic AI submission.
 
+Each reply starts with a quick rating: **HIGH — Likely scam/phishing**, **MODERATE
+— Suspicious**, **LOW — No strong phishing pattern detected**, or **UNAVAILABLE**
+when no readable body could be fully checked. This is a fast local text-rule
+check, clearly labeled as preliminary rather than AI analysis or a safety verdict.
+It combines urgency, account threats, credential requests, verification links,
+unusual payment methods, prize claims and secrecy. Ordinary links alone are not
+rated as phishing. The email includes up to three fixed reasons, never excerpts
+or quoted secrets. The subject is considered in memory but is not stored or
+echoed. Attachment messages receive an explicit body-only rating; attachments are
+not inspected. Storage quota failures still receive the quick rating and a normal
+page link. Full AI analysis remains a manual action on the existing page.
+
 The token flow replaces the earlier requirement to keep all incoming contents
 only in memory. The user authorized temporary Worker storage to shorten the link.
 Existing `#analyze?message=...` links remain readable for backward compatibility,

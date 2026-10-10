@@ -3,6 +3,7 @@ import { createMimeMessage } from 'mimetext'
 import { compile } from 'html-to-text'
 import { createAnalysisLink, createTokenAnalysisLink, MAX_MESSAGE_LENGTH } from '../shared/analysis-link.ts'
 import { storeEmailBody } from './email-storage.js'
+import { quickEmailRating, formatQuickEmailRating } from './email-rating.js'
 
 export const MAX_RAW_EMAIL_BYTES = 64 * 1024
 
@@ -52,16 +53,21 @@ export async function prepareEmailReply(message, env) {
   let explanation
   let storedKey
   let storedHours
+  let rating = null
+  let hasAttachments = false
   try {
     const raw = await readBoundedEmail(message)
     if (raw === null) {
       explanation = 'This email is too large to process safely on the free service. No content was included in the link or truncated. Paste the message manually (the page accepts up to 5,000 characters).'
     } else {
       const parsed = await PostalMime.parse(raw)
-      if (parsed.attachments.length > 0) {
+      const body = parsed.text?.trim() ? parsed.text : parsed.html ? htmlToText(parsed.html) : ''
+      // Subject is considered in memory only; it is never stored or echoed.
+      rating = quickEmailRating(body, parsed.subject)
+      hasAttachments = parsed.attachments.length > 0
+      if (hasAttachments) {
         explanation = 'This email contains attachments, including possibly inline images. Attachments cannot be included in an analysis link, so no content was included or silently discarded. Open the page and paste the relevant message text manually; the scanner does not analyze attachments.'
       } else {
-        const body = parsed.text?.trim() ? parsed.text : parsed.html ? htmlToText(parsed.html) : ''
         if (body.trim() && body.length <= MAX_MESSAGE_LENGTH) {
           try {
             const stored = await storeEmailBody(env, body)
@@ -90,7 +96,8 @@ export async function prepareEmailReply(message, env) {
   const privacy = storedKey
     ? `Only your parsed message body is temporarily stored for ${storedHours} hour${storedHours === 1 ? '' : 's'} and then expires automatically. The link contains a random token, not your email text. Anyone with this link can read the message until it expires.`
     : 'No message content is stored for this link.'
-  const text = `Open Analyse Message:\n${link}\n\n${explanation}\n\n${privacy} Sender addresses, subjects and attachments are not stored. Imported messages are excluded from browser drafts and history. Only clicking Analyze sends the reviewed message to Cloudflare Workers AI.`
+  const quickCheck = formatQuickEmailRating(rating, hasAttachments)
+  const text = `${quickCheck}\n\nOpen Analyse Message for the full assessment:\n${link}\n\n${explanation}\n\n${privacy} Sender addresses, subjects and attachments are not stored. Imported messages are excluded from browser drafts and history. Only clicking Analyze sends the reviewed message to Cloudflare Workers AI.`
   return { link, text, storedKey }
 }
 
