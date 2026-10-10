@@ -16,49 +16,109 @@ const threatExampleText = 'Example: Urgent: your bank account has been temporari
 
 const buildAnalysis = (content: string, imagePresent: boolean) => {
   const normalized = content.toLowerCase()
-  const urgencyMatches = ['urgent', 'immediately', 'asap', 'right away', 'within 24 hours', 'act now'].filter((term) => normalized.includes(term))
-  const impersonationMatches = ['bank', 'paypal', 'apple', 'microsoft', 'official', 'security', 'customer support'].filter((term) => normalized.includes(term))
-  const linkMatches = ['click this link', 'verify here', 'restore access', 'secure account', 'http://', 'https://', 'login now'].filter((term) => normalized.includes(term))
-  const emotionalMatches = ['suspended', 'locked', 'danger', 'lose access', 'threat', 'immediately', 'panic'].filter((term) => normalized.includes(term))
+  const owaspChecks = [
+    {
+      id: 'A01',
+      label: 'Broken Access Control',
+      keywords: ['recover access', 'verify account', 'restore access', 'account suspended', 'locked account', 'security alert'],
+      icon: '🚧',
+    },
+    {
+      id: 'A02',
+      label: 'Cryptographic Failures',
+      keywords: ['password', 'otp', 'one-time code', 'verification code', 'secret code', 'mfa', 'sms code'],
+      icon: '🔐',
+    },
+    {
+      id: 'A03',
+      label: 'Injection',
+      keywords: ['click here', 'open this link', 'follow the link', 'redirect', 'download now', 'submit form'],
+      icon: '🧪',
+    },
+    {
+      id: 'A04',
+      label: 'Insecure Design',
+      keywords: ['urgent', 'immediately', 'act now', 'today only', 'within 24 hours', 'final notice'],
+      icon: '🧠',
+    },
+    {
+      id: 'A05',
+      label: 'Security Misconfiguration',
+      keywords: ['official', 'bank', 'paypal', 'microsoft', 'apple', 'security team', 'customer support'],
+      icon: '⚙️',
+    },
+    {
+      id: 'A06',
+      label: 'Vulnerable Components',
+      keywords: ['legacy portal', 'outdated app', 'unsupported browser', 'expired certificate', 'old version'],
+      icon: '🧰',
+    },
+    {
+      id: 'A07',
+      label: 'Authentication Failures',
+      keywords: ['verify your identity', 'confirm login', 'reset your password', 'sign in to continue', 'account recovery'],
+      icon: '🪪',
+    },
+    {
+      id: 'A08',
+      label: 'Integrity Failures',
+      keywords: ['invoice', 'payment required', 'wire transfer', 'payment update', 'tax refund', 'important document'],
+      icon: '📦',
+    },
+    {
+      id: 'A09',
+      label: 'Logging & Monitoring',
+      keywords: ['ignore this warning', 'do not share', 'keep this private', 'no need to contact support', 'confidential alert'],
+      icon: '📊',
+    },
+    {
+      id: 'A10',
+      label: 'Unsafe URL / SSRF Risk',
+      keywords: ['http://', 'https://', 'click the link', 'visit the portal', 'open the form', 'secure portal'],
+      icon: '🔗',
+    },
+  ]
 
-  const urgencyScore = Math.min(96, 15 + urgencyMatches.length * 16)
-  const impersonationScore = Math.min(94, 18 + impersonationMatches.length * 14)
-  const linkScore = Math.min(98, 12 + linkMatches.length * 15)
-  const emotionalScore = Math.min(96, 14 + emotionalMatches.length * 15)
+  const matchedChecks = owaspChecks
+    .map((check) => ({
+      ...check,
+      value: Math.min(99, 22 + check.keywords.filter((term) => normalized.includes(term)).length * 17),
+      matches: check.keywords.filter((term) => normalized.includes(term)),
+    }))
+    .filter((check) => check.matches.length > 0)
 
+  const averageMatchScore = matchedChecks.reduce((total, check) => total + check.value, 0) / Math.max(matchedChecks.length, 1)
   const score = Math.min(
     99,
     Math.max(
-      18,
-      Math.round((urgencyScore + impersonationScore + linkScore + emotionalScore) / 4 + (imagePresent ? 8 : 0)),
+      12,
+      Math.round(30 + averageMatchScore * 0.75 + (imagePresent ? 8 : 0)),
     ),
   )
 
-  const flags = [
-    urgencyMatches.length ? 'Urgent language detected' : 'No urgent wording detected',
-    linkMatches.length ? 'Suspicious link or click request' : 'No obvious phishing link pattern',
-    impersonationMatches.length ? 'Possible impersonation or trust signal' : 'No obvious impersonation cues',
-    emotionalMatches.length ? 'Emotional manipulation cues present' : 'Low pressure language detected',
-  ]
-
-  const risk = score >= 75 ? 'High' : score >= 45 ? 'Moderate' : 'Low'
+  const risk = matchedChecks.length >= 3 || score >= 68 ? 'High' : score >= 45 ? 'Moderate' : 'Low'
+  const flags = matchedChecks.length
+    ? matchedChecks.slice(0, 4).map((check) => `OWASP ${check.id}: ${check.label}`)
+    : ['OWASP A09: Security logging and monitoring gaps not detected']
 
   return {
     score,
     risk,
     summary:
-      imagePresent && content.trim()
-        ? 'Codex AI reviewed both the uploaded image and pasted message and found strong phishing indicators.'
-        : imagePresent
-          ? 'Codex AI reviewed the uploaded image and found digital trust signals consistent with a phishing attempt.'
-          : 'Codex AI reviewed the provided text and found a suspicious pattern that matches common phishing behavior.',
+      matchedChecks.length > 0
+        ? `OWASP Top 10 review found ${matchedChecks.length} high-risk web application patterns consistent with phishing manipulation and account abuse.`
+        : 'OWASP Top 10 review did not detect clear phishing patterns in the provided content.',
     flags,
-    signals: [
-      { label: 'Urgency', value: urgencyScore, icon: '⚡' },
-      { label: 'Impersonation', value: impersonationScore, icon: '🪪' },
-      { label: 'Link Risk', value: linkScore, icon: '🔗' },
-      { label: 'Manipulation', value: emotionalScore, icon: '🎭' },
-    ],
+    signals: matchedChecks.length
+      ? matchedChecks.slice(0, 4).map((check) => ({
+          label: `${check.id} ${check.label}`,
+          value: check.value,
+          icon: check.icon,
+        }))
+      : [
+          { label: 'A09 Logging & Monitoring', value: 0, icon: '📊' },
+          { label: 'A10 Unsafe URLs', value: 0, icon: '🔗' },
+        ],
   }
 }
 
@@ -174,9 +234,9 @@ function App() {
   const isRunDisabled = isAnalyzing || !hasInput || currentInputSignature === lastAnalyzedInput
   const isAnalyzeAgainDisabled = isAnalyzing || !hasInput
   const isPendingScore = !isAnalyzing && progressValue === 0
+  const scoreRingProgress = Math.min(100, Math.max(0, progressValue))
   const scoreRingStyle = {
-    background: `conic-gradient(#ffca4d ${progressValue}%, rgba(255, 255, 255, 0.08) ${progressValue}% 100%)`,
-    transition: 'background 0.12s linear',
+    strokeDashoffset: `${(1 - scoreRingProgress / 100) * (2 * Math.PI * 54)}`,
   }
   const displayScore = isAnalyzing ? Math.round(progressValue) : isPendingScore ? 0 : analysis.score
   const displayRisk = isPendingScore ? 'Pending' : analysis.risk
@@ -231,22 +291,28 @@ function App() {
       return
     }
 
+    const totalDuration = 5000
+    const frameInterval = 40
+    const stepValue = 100 / (totalDuration / frameInterval)
     const timer = window.setInterval(() => {
       setProgressValue((current) => {
-        if (current >= 100) {
+        const nextValue = Math.min(current + stepValue, 100)
+        if (nextValue >= 100) {
           window.clearInterval(timer)
-          return 100
         }
-
-        return Math.min(current + 8, 100)
+        return nextValue
       })
-    }, 80)
+    }, frameInterval)
 
     return () => window.clearInterval(timer)
   }, [isAnalyzing])
 
   useEffect(() => {
-    if (!isAnalyzing && (!hasInput || currentInputSignature !== lastAnalyzedInput)) {
+    if (isAnalyzing) {
+      return
+    }
+
+    if (!hasInput || currentInputSignature !== lastAnalyzedInput) {
       setProgressValue(0)
     }
   }, [hasInput, isAnalyzing, currentInputSignature, lastAnalyzedInput])
@@ -472,14 +538,26 @@ function App() {
             <section className="report-card">
               <div className="report-card-inner">
                 <div className="score-wrap">
-                  <div className="score-ring" style={scoreRingStyle} aria-label={`Risk score ${displayScore} out of 100`}>
-                    <span>{displayScore}</span>
+                  <div className="score-ring" aria-label={`Risk score ${displayScore} out of 100`}>
+                    <svg viewBox="0 0 140 140" aria-hidden="true">
+                      <circle className="score-ring-track" cx="70" cy="70" r="54" />
+                      <circle
+                        className="score-ring-progress"
+                        cx="70"
+                        cy="70"
+                        r="54"
+                        style={scoreRingStyle}
+                      />
+                    </svg>
+                    <div className="score-ring-label">
+                      <span>{displayScore}</span>
+                    </div>
                   </div>
                 </div>
 
                 <div className="report-content">
                   <div className="risk-tag">{displayRisk}</div>
-                  <div className="risk-label">Scam / Phishing / Emotional Manipulation</div>
+                  <div className="risk-label">OWASP Top 10 phishing review</div>
                   <h2>Risk Assessment</h2>
                   <p>{displaySummary}</p>
 

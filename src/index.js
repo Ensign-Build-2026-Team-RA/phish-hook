@@ -9,36 +9,108 @@ const normalizeText = (value) => String(value ?? '').trim()
 
 const fallbackHeuristicAnalysis = (text, imagePresent) => {
   const normalized = normalizeText(text).toLowerCase()
-  const urgencyMatches = ['urgent', 'immediately', 'asap', 'right away', 'within 24 hours', 'act now'].filter((term) => normalized.includes(term))
-  const impersonationMatches = ['bank', 'paypal', 'apple', 'microsoft', 'official', 'security', 'customer support'].filter((term) => normalized.includes(term))
-  const linkMatches = ['click this link', 'verify here', 'restore access', 'secure account', 'http://', 'https://', 'login now'].filter((term) => normalized.includes(term))
-  const emotionalMatches = ['suspended', 'locked', 'danger', 'lose access', 'threat', 'immediately', 'panic'].filter((term) => normalized.includes(term))
+  const owaspChecks = [
+    {
+      id: 'A01',
+      label: 'Broken Access Control',
+      keywords: ['recover access', 'verify account', 'restore access', 'account suspended', 'locked account', 'security alert'],
+      icon: '🚧',
+    },
+    {
+      id: 'A02',
+      label: 'Cryptographic Failures',
+      keywords: ['password', 'otp', 'one-time code', 'verification code', 'secret code', 'mfa', 'sms code'],
+      icon: '🔐',
+    },
+    {
+      id: 'A03',
+      label: 'Injection',
+      keywords: ['click here', 'open this link', 'follow the link', 'redirect', 'download now', 'submit form'],
+      icon: '🧪',
+    },
+    {
+      id: 'A04',
+      label: 'Insecure Design',
+      keywords: ['urgent', 'immediately', 'act now', 'today only', 'within 24 hours', 'final notice'],
+      icon: '🧠',
+    },
+    {
+      id: 'A05',
+      label: 'Security Misconfiguration',
+      keywords: ['official', 'bank', 'paypal', 'microsoft', 'apple', 'security team', 'customer support'],
+      icon: '⚙️',
+    },
+    {
+      id: 'A06',
+      label: 'Vulnerable Components',
+      keywords: ['legacy portal', 'outdated app', 'unsupported browser', 'expired certificate', 'old version'],
+      icon: '🧰',
+    },
+    {
+      id: 'A07',
+      label: 'Authentication Failures',
+      keywords: ['verify your identity', 'confirm login', 'reset your password', 'sign in to continue', 'account recovery'],
+      icon: '🪪',
+    },
+    {
+      id: 'A08',
+      label: 'Integrity Failures',
+      keywords: ['invoice', 'payment required', 'wire transfer', 'payment update', 'tax refund', 'important document'],
+      icon: '📦',
+    },
+    {
+      id: 'A09',
+      label: 'Logging & Monitoring',
+      keywords: ['ignore this warning', 'do not share', 'keep this private', 'no need to contact support', 'confidential alert'],
+      icon: '📊',
+    },
+    {
+      id: 'A10',
+      label: 'Unsafe URL / SSRF Risk',
+      keywords: ['http://', 'https://', 'click the link', 'visit the portal', 'open the form', 'secure portal'],
+      icon: '🔗',
+    },
+  ]
 
-  const urgencyScore = Math.min(96, 15 + urgencyMatches.length * 16)
-  const impersonationScore = Math.min(94, 18 + impersonationMatches.length * 14)
-  const linkScore = Math.min(98, 12 + linkMatches.length * 15)
-  const emotionalScore = Math.min(96, 14 + emotionalMatches.length * 15)
+  const matchedChecks = owaspChecks
+    .map((check) => ({
+      ...check,
+      value: Math.min(99, 22 + check.keywords.filter((term) => normalized.includes(term)).length * 17),
+      matches: check.keywords.filter((term) => normalized.includes(term)),
+    }))
+    .filter((check) => check.matches.length > 0)
 
-  const score = Math.min(99, Math.max(18, Math.round((urgencyScore + impersonationScore + linkScore + emotionalScore) / 4 + (imagePresent ? 8 : 0))))
+  const averageMatchScore = matchedChecks.reduce((total, check) => total + check.value, 0) / Math.max(matchedChecks.length, 1)
+  const score = Math.min(
+    99,
+    Math.max(
+      12,
+      Math.round(30 + averageMatchScore * 0.75 + (imagePresent ? 8 : 0)),
+    ),
+  )
+
+  const risk = matchedChecks.length >= 3 || score >= 68 ? 'High' : score >= 45 ? 'Moderate' : 'Low'
 
   return {
     score,
-    risk: score >= 75 ? 'High' : score >= 45 ? 'Moderate' : 'Low',
-    summary: imagePresent
-      ? 'The uploaded image and message show strong phishing indicators, including urgency, impersonation, and pressure tactics.'
-      : 'The message contains urgency, pressure, and impersonation patterns that resemble a phishing attempt.',
-    flags: [
-      urgencyMatches.length ? 'Urgent language detected' : 'No urgent language detected',
-      linkMatches.length ? 'Suspicious link or click request' : 'No obvious phishing link pattern',
-      impersonationMatches.length ? 'Possible impersonation or trust signal' : 'No impersonation cues identified',
-      emotionalMatches.length ? 'Emotional manipulation cues present' : 'Low-pressure language detected',
-    ],
-    signals: [
-      { label: 'Urgency', value: urgencyScore, icon: '⚡' },
-      { label: 'Impersonation', value: impersonationScore, icon: '🪪' },
-      { label: 'Link Risk', value: linkScore, icon: '🔗' },
-      { label: 'Manipulation', value: emotionalScore, icon: '🎭' },
-    ],
+    risk,
+    summary:
+      matchedChecks.length > 0
+        ? `OWASP Top 10 review found ${matchedChecks.length} relevant web-security patterns consistent with a phishing attempt.`
+        : 'OWASP Top 10 review did not detect a strong phishing pattern in the provided content.',
+    flags: matchedChecks.length
+      ? matchedChecks.slice(0, 4).map((check) => `OWASP ${check.id}: ${check.label}`)
+      : ['OWASP A09: Security logging and monitoring gaps not detected'],
+    signals: matchedChecks.length
+      ? matchedChecks.slice(0, 4).map((check) => ({
+          label: `${check.id} ${check.label}`,
+          value: check.value,
+          icon: check.icon,
+        }))
+      : [
+          { label: 'A09 Logging & Monitoring', value: 0, icon: '📊' },
+          { label: 'A10 Unsafe URLs', value: 0, icon: '🔗' },
+        ],
   }
 }
 
@@ -176,7 +248,7 @@ export default {
       }
 
       try {
-        const prompt = `You are a phishing detection analyst. Review the supplied message or image evidence for fraud, urgency, impersonation, malicious links, and emotional manipulation. Return valid JSON only with keys: score, risk, summary, flags, signals. score is a number 0-99. risk is one of: High, Moderate, Low. summary is a short paragraph. flags is an array of strings. signals is an array of objects with label, value, icon.`
+        const prompt = `You are a phishing detection analyst. Review the supplied message or image evidence using the OWASP Top 10 categories, especially A01, A02, A03, A04, A05, A06, A07, A08, A09, and A10. Focus on account takeover attempts, credential theft, unsafe links, impersonation, urgency, authentication failures, and manipulation patterns. Return valid JSON only with keys: score, risk, summary, flags, signals. score is a number 0-99. risk is one of: High, Moderate, Low. summary is a short paragraph. flags is an array of strings that should reference OWASP category IDs and names when relevant. signals is an array of objects with label, value, icon.`
 
         const resultPayload = {
           model: env.OPENAI_MODEL || 'gpt-4.1-mini',

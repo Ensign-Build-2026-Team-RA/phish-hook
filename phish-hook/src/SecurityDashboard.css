@@ -10,6 +10,80 @@
   font-family: Inter, system-ui, sans-serif;
 }
 
+.app-shell.light .security-dashboard {
+  color: #13283d;
+}
+
+.app-shell.light .sd-heading h1,
+.app-shell.light .sd-card h2,
+.app-shell.light .sd-threat-name,
+.app-shell.light .sd-gauge-label strong,
+.app-shell.light .sd-stats strong {
+  color: #122639;
+}
+
+.app-shell.light .sd-eyebrow,
+.app-shell.light .sd-demo-badge,
+.app-shell.light .sd-gauge-label span {
+  color: #2d6f96;
+}
+
+.app-shell.light .sd-heading p,
+.app-shell.light .sd-note,
+.app-shell.light .sd-stats span,
+.app-shell.light .sd-disclaimer {
+  color: #4b647a;
+}
+
+.app-shell.light .sd-card {
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.86), rgba(234, 242, 250, 0.96));
+  border-color: rgba(73, 107, 141, 0.18);
+  box-shadow: 0 12px 24px rgba(30, 53, 75, 0.07);
+}
+
+.app-shell.light .sd-track {
+  stroke: #dfeaf7;
+}
+
+.app-shell.light .sd-progress-circle,
+.app-shell.light .sd-bars div {
+  filter: none;
+  box-shadow: none;
+}
+
+.app-shell.light .sd-gauge-label strong {
+  color: #122639;
+}
+
+.app-shell.light .sd-threat-row,
+.app-shell.light .sd-stats > div {
+  background: rgba(244, 248, 252, 0.9);
+  border-color: rgba(74, 105, 137, 0.15);
+}
+
+.app-shell.light .sd-scan-button {
+  background: linear-gradient(90deg, #6ec7f6, #3ca5e8);
+  border-color: rgba(49, 118, 180, 0.2);
+  color: #0c2439;
+  box-shadow: none;
+}
+
+.app-shell.light .sd-scan-button:hover:not(:disabled) {
+  box-shadow: none;
+}
+
+.app-shell.light .sd-bars {
+  border-bottom-color: rgba(74, 105, 137, 0.18);
+}
+
+.app-shell.light .sd-bars div {
+  background: linear-gradient(0deg, #49a7ea, #79d3ff);
+}
+
+.app-shell.light .sd-chart svg line {
+  stroke: rgba(52, 82, 111, 0.18);
+}
+
 .sd-heading {
   display: flex;
   align-items: center;
