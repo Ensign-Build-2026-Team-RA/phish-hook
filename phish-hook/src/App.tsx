@@ -1,7 +1,8 @@
+import SecurityDashboard from './SecurityDashboard'
 import { useEffect, useState } from 'react'
 import './App.css'
 
-const navItems = ['Home', 'Analyze', 'History', 'Safety Guide'] as const
+const navItems = ['Home', 'Analyze', 'Dashboard', 'History', 'Safety Guide'] as const
 
 type NavItem = (typeof navItems)[number]
 
@@ -355,6 +356,9 @@ function App() {
 
   const renderPage = () => {
     switch (activePage) {
+      case 'Dashboard':
+        return <SecurityDashboard />
+
       case 'Home':
         return (
           <div className="page-shell">
@@ -366,7 +370,8 @@ function App() {
                   Phishing Hook helps people evaluate suspicious emails, texts, and social prompts by surfacing urgency,
                   impersonation patterns, and coercive language before trust is lost.
                 </p>
-                <div className="hero-stats">
+                <button type="button" className="primary-btn" onClick={() => setActivePage('Analyze')}>Try the scanner →</button>
+                <div className="hero-stats" style={{ marginTop: 18 }}>
                   <span className="stat-pill"><strong>4x</strong> faster review</span>
                   <span className="stat-pill"><strong>24/7</strong> risk awareness</span>
                   <span className="stat-pill"><strong>AI</strong> guided checks</span>
@@ -527,8 +532,8 @@ function App() {
         return (
           <div className="page-shell">
             <div className="section-header-row">
-              <div className="eyebrow">Recent assessments</div>
-              <button type="button" className="primary-btn small-btn">New Analysis</button>
+              <div className="eyebrow">Illustrative history examples</div>
+              <button type="button" className="primary-btn small-btn" onClick={() => setActivePage('Analyze')}>New Analysis</button>
             </div>
             <h1 className="report-title">History</h1>
 
@@ -555,7 +560,7 @@ function App() {
           <div className="page-shell">
             <div className="section-header-row">
               <div className="eyebrow">Stay alert</div>
-              <button type="button" className="primary-btn small-btn">Run Check</button>
+              <button type="button" className="primary-btn small-btn" onClick={() => setActivePage('Analyze')}>Run Check</button>
             </div>
             <h1 className="report-title">Safety Guide</h1>
 

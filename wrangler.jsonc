@@ -2,5 +2,14 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "phish-hook",
   "main": "src/index.js",
-  "compatibility_date": "2026-10-09"
+  "compatibility_date": "2026-10-09",
+  "assets": {
+    "directory": "./phish-hook/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/", "/api/*", "/analyze", "/chat"]
+  },
+  "ai": {
+    "binding": "AI"
+  }
 }
