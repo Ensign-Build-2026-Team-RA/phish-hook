@@ -785,3 +785,40 @@
     flex: 1;
   }
 }
+
+/* Interactive PhishHook scanner additions */
+.scanner-panel {
+  padding: 24px;
+  border-radius: 20px;
+  border: 1px solid rgba(154, 178, 203, 0.18);
+  background: rgba(14, 28, 41, 0.96);
+  display: grid;
+  gap: 16px;
+}
+.scanner-label { font-weight: 800; color: #edf5ff; }
+.scanner-input {
+  box-sizing: border-box;
+  width: 100%;
+  resize: vertical;
+  min-height: 150px;
+  border: 1px solid rgba(115, 217, 255, 0.28);
+  border-radius: 14px;
+  padding: 16px;
+  background: #07121c;
+  color: #edf5ff;
+  font: inherit;
+  line-height: 1.6;
+}
+.scanner-input:focus { outline: 2px solid #73d9ff; outline-offset: 2px; }
+.sample-row { display: flex; flex-wrap: wrap; gap: 10px; }
+.scan-button { width: 100%; }
+.scan-button:disabled { opacity: 0.5; cursor: not-allowed; }
+.scanner-note { color: #a4bacf; font-size: 0.84rem; line-height: 1.6; margin: 0; }
+.scanner-results { margin-top: 24px; }
+.submitted-message { white-space: pre-wrap; overflow-wrap: anywhere; }
+.scanner-results .flag-panel { margin-top: 22px; }
+.scanner-results .flag-panel p { color: #b9cfe3; line-height: 1.7; }
+@media (max-width: 600px) {
+  .scanner-panel { padding: 16px; }
+  .sample-row .secondary-btn { flex: 1 1 auto; }
+}
