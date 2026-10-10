@@ -451,29 +451,60 @@
   position: relative;
   width: 150px;
   height: 150px;
-  border-radius: 50%;
-  background: conic-gradient(#ffca4d 0 70%, rgba(255, 255, 255, 0.08) 70% 100%);
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.score-ring::before {
-  content: '';
-  position: absolute;
-  inset: 12px;
-  border-radius: 50%;
-  background: rgba(8, 19, 30, 0.88);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+.score-ring svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+  overflow: visible;
 }
 
-.score-ring span {
-  position: relative;
-  z-index: 1;
+.score-ring-track,
+.score-ring-progress {
+  fill: none;
+  stroke-width: 11;
+}
+
+.score-ring-track {
+  stroke: rgba(255, 255, 255, 0.08);
+}
+
+.score-ring-progress {
+  stroke: #ffca4d;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.25s ease;
+  stroke-dasharray: 339.292;
+}
+
+.score-ring-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.score-ring-label span {
   font-size: 2.7rem;
   color: #ffd25d;
   font-weight: 800;
   letter-spacing: -0.05em;
+}
+
+.app-shell.light .score-ring-track {
+  stroke: rgba(60, 92, 118, 0.14);
+}
+
+.app-shell.light .score-ring-progress {
+  stroke: #e0a52f;
+}
+
+.app-shell.light .score-ring-label span {
+  color: #1a2d40;
 }
 
 .report-content {
@@ -658,7 +689,7 @@
   border-radius: 12px;
   border: 1px solid rgba(154, 178, 203, 0.22);
   background: rgba(255, 255, 255, 0.02);
-  color: #edf5ff;
+  
   cursor: pointer;
   font-weight: 700;
 }

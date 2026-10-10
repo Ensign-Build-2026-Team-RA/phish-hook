@@ -126,6 +126,25 @@ describe("phish-hook Worker", () => {
     });
   });
 
+  describe("POST /api/analyze", () => {
+    it("uses OWASP Top 10 categories in fallback analysis when no API key is configured", async () => {
+      const request = new Request("http://localhost/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: "Urgent: verify your identity and reset your password immediately by clicking the secure portal link." }),
+      });
+      const env = createMockEnv();
+      const response = await worker.fetch(request, env, {});
+
+      expect(response.status).toBe(200);
+      const data = await response.json();
+      expect(data.score).toBeGreaterThan(60);
+      expect(data.risk).toBe("High");
+      expect(data.flags.some((flag) => flag.includes("OWASP A07") || flag.includes("OWASP A10") || flag.includes("OWASP A04"))).toBe(true);
+      expect(data.summary).toContain("OWASP Top 10");
+    });
+  });
+
   describe("POST /chat", () => {
     it("returns 400 when prompt is missing", async () => {
       const request = new Request("http://localhost/chat", {
