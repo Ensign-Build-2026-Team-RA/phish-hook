@@ -1,4 +1,5 @@
 import SecurityDashboard from './SecurityDashboard'
+import PhilChatbot from './PhilChatbot'
 import { useEffect, useRef, useState } from 'react'
 import { MAX_MESSAGE_LENGTH, readAnalysisFragment } from '../../shared/analysis-link'
 import philBackground from './assets/phil-background-source.png'
@@ -793,6 +794,7 @@ function App() {
       </header>
 
       {renderPage()}
+      <PhilChatbot />
     </div>
   )
 }
