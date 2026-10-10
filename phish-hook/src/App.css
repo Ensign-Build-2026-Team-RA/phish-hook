@@ -825,6 +825,27 @@
 .submitted-message { white-space: pre-wrap; overflow-wrap: anywhere; }
 .scanner-results .flag-panel { margin-top: 22px; }
 .scanner-results .flag-panel p { color: #b9cfe3; line-height: 1.7; }
+.ai-debug-panel {
+  margin-top: 26px;
+  padding: 20px;
+  border: 1px solid rgba(154, 178, 203, 0.24);
+  border-radius: 16px;
+  background: rgba(7, 18, 28, 0.82);
+  color: #dce9f7;
+}
+.ai-debug-panel summary { cursor: pointer; font-weight: 700; }
+.ai-debug-panel h3 { margin: 20px 0 8px; font-size: 0.95rem; }
+.ai-debug-panel pre {
+  max-height: 440px;
+  overflow: auto;
+  padding: 14px;
+  border-radius: 10px;
+  background: #030a10;
+  color: #b9d7ee;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: 0.8rem/1.55 ui-monospace, SFMono-Regular, Consolas, monospace;
+}
 @media (max-width: 600px) {
   .scanner-panel { padding: 16px; }
   .sample-row .secondary-btn { flex: 1 1 auto; }
