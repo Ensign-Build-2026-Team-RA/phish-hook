@@ -7,9 +7,11 @@ no automatic AI submission.
 
 ## Configuration
 
-The confirmed receiving address is `bait@phishhook.lol`; the public site is
-`https://phishhook.lol/`. These are configured as `RECEIVING_EMAIL` and `SITE_URL`
-in `wrangler.jsonc`. The existing `phish-hook` Worker now has both `fetch()` and
+All addresses at `phishhook.lol` receive mail, including `bait@phishhook.lol`
+and `report@phishhook.lol`. Replies always use `report@phishhook.lol`; the public
+site is `https://phishhook.lol/`. These are configured as `RECEIVING_DOMAIN`,
+`REPLY_EMAIL`, and `SITE_URL` in `wrangler.jsonc`. The reply address must belong
+to the configured receiving domain. The existing `phish-hook` Worker has `fetch()` and
 `email()` handlers. Wrangler is used because the repository already has its config.
 
 Only Cloudflare Email Routing and the existing Worker are used. Replies call
@@ -22,9 +24,9 @@ outbound recipients and is intentionally not configured here.
 After confirming the domain and address, check the current rules and mail records
 before enabling Email Routing. Do not replace another provider's existing MX or
 SPF records without resolving that conflict first. Deploy the tested Worker, enable
-Email Routing for `phishhook.lol`, and create one literal `to` rule for
-`bait@phishhook.lol` with action `worker` and value `phish-hook`. Keep the catch-all
-disabled. Do not enable Email Sending.
+Email Routing for `phishhook.lol`, and enable its catch-all rule with action
+`worker` and value `phish-hook`. The existing literal rule for `bait@phishhook.lol`
+also points to that Worker. Do not enable Email Sending.
 
 Replies require incoming DMARC authentication to pass, a Message-ID, a reply to
 the envelope sender, and the same domain for the reply sender and inbound recipient.

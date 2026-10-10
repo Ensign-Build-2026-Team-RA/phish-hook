@@ -6,7 +6,8 @@
   "compatibility_flags": ["nodejs_compat"],
   "vars": {
     "SITE_URL": "https://phishhook.lol/",
-    "RECEIVING_EMAIL": "bait@phishhook.lol"
+    "RECEIVING_DOMAIN": "phishhook.lol",
+    "REPLY_EMAIL": "report@phishhook.lol"
   },
   "assets": {
     "directory": "./phish-hook/dist",

@@ -79,17 +79,20 @@ export async function prepareEmailReply(message, siteUrl) {
 }
 
 const validAddress = (address) => typeof address === 'string' && /^[^\s<>@]+@[^\s<>@]+$/.test(address)
+const addressDomain = (address) => validAddress(address) ? address.split('@')[1].toLowerCase() : null
 
 export async function handleEmail(message, env, EmailMessage) {
-  if (!env.SITE_URL || !validAddress(env.RECEIVING_EMAIL)) {
+  const receivingDomain = typeof env.RECEIVING_DOMAIN === 'string' ? env.RECEIVING_DOMAIN.toLowerCase() : ''
+  if (!env.SITE_URL || !receivingDomain || addressDomain(env.REPLY_EMAIL) !== receivingDomain) {
     message.setReject('Email analysis is not configured.')
     return
   }
-  if (message.to.toLowerCase() !== env.RECEIVING_EMAIL.toLowerCase()) {
-    message.setReject('This receiving address is not configured for analysis.')
+  if (addressDomain(message.to) !== receivingDomain) {
+    message.setReject('This receiving domain is not configured for analysis.')
     return
   }
-  if (!validAddress(message.from) || message.from.toLowerCase() === message.to.toLowerCase()) {
+  if (!validAddress(message.from) || message.from.toLowerCase() === message.to.toLowerCase()
+    || message.from.toLowerCase() === env.REPLY_EMAIL.toLowerCase()) {
     message.setReject('An automatic reply cannot be sent to this envelope sender.')
     return
   }
@@ -106,14 +109,14 @@ export async function handleEmail(message, env, EmailMessage) {
   try {
     const { text } = await prepareEmailReply(message, env.SITE_URL)
     const reply = createMimeMessage()
-    reply.setSender(env.RECEIVING_EMAIL)
+    reply.setSender(env.REPLY_EMAIL)
     reply.setRecipient(message.from)
     reply.setSubject('Your Phishing Hook analysis link')
     reply.setHeader('In-Reply-To', messageId)
     reply.setHeader('Auto-Submitted', 'auto-replied')
     reply.addMessage({ contentType: 'text/plain', data: text })
     // Email Routing replies use the inbound event; no paid Email Sending binding.
-    await message.reply(new EmailMessage(env.RECEIVING_EMAIL, message.from, reply.asRaw()))
+    await message.reply(new EmailMessage(env.REPLY_EMAIL, message.from, reply.asRaw()))
   } catch {
     message.setReject('The analysis reply could not be sent. Please use the website directly.')
   }

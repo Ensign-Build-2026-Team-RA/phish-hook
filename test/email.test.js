@@ -3,14 +3,14 @@ import PostalMime from 'postal-mime'
 import { handleEmail, prepareEmailReply, MAX_RAW_EMAIL_BYTES } from '../src/email.js'
 import { createAnalysisLink, readAnalysisFragment } from '../shared/analysis-link.ts'
 
-const env = { SITE_URL: 'https://phishhook.lol/', RECEIVING_EMAIL: 'bait@phishhook.lol' }
+const env = { SITE_URL: 'https://phishhook.lol/', RECEIVING_DOMAIN: 'phishhook.lol', REPLY_EMAIL: 'report@phishhook.lol' }
 const mime = (body, type = 'text/plain; charset=utf-8', extra = '') =>
   `From: sender@example.com\r\nTo: bait@phishhook.lol\r\nMessage-ID: <test@example.com>\r\nMIME-Version: 1.0\r\nContent-Type: ${type}\r\n${extra}\r\n${body}`
 
 function incoming(raw, headers = {}) {
   return {
     from: 'sender@example.com',
-    to: env.RECEIVING_EMAIL,
+    to: 'bait@phishhook.lol',
     headers: new Headers({ 'message-id': '<test@example.com>', ...headers }),
     raw: new Response(raw).body,
     rawSize: new TextEncoder().encode(raw).byteLength,
@@ -34,9 +34,10 @@ describe('inbound email analysis links', () => {
     await handleEmail(input, env, MemoryEmailMessage)
     expect(input.reply).toHaveBeenCalledTimes(1)
     const reply = input.reply.mock.calls[0][0]
-    expect(reply.from).toBe(env.RECEIVING_EMAIL)
+    expect(reply.from).toBe(env.REPLY_EMAIL)
     expect(reply.to).toBe(input.from)
     const parsedReply = await PostalMime.parse(reply.raw)
+    expect(parsedReply.from.address).toBe(env.REPLY_EMAIL)
     const link = parsedReply.text.match(/https:\/\/\S+/)[0]
     const url = new URL(link)
     expect(url.pathname).toBe('/')
@@ -48,6 +49,41 @@ describe('inbound email analysis links', () => {
     expect(log).not.toHaveBeenCalled()
     expect(warn).not.toHaveBeenCalled()
     expect(error).not.toHaveBeenCalled()
+  })
+
+  it.each(['bait@phishhook.lol', 'hello@phishhook.lol', 'anything+tag@phishhook.lol', 'report@phishhook.lol', 'Other@PHISHHOOK.LOL'])('accepts %s and replies from the fixed report address', async (recipient) => {
+    const input = incoming(mime('Message to analyze'))
+    input.to = recipient
+    await handleEmail(input, env, MemoryEmailMessage)
+    expect(input.setReject).not.toHaveBeenCalled()
+    expect(input.reply).toHaveBeenCalledOnce()
+    const reply = input.reply.mock.calls[0][0]
+    expect(reply.from).toBe('report@phishhook.lol')
+    expect((await PostalMime.parse(reply.raw)).from.address).toBe('report@phishhook.lol')
+    expect(reply.to).toBe(input.from)
+  })
+
+  it.each(['recipient@phishhook.lol.evil', 'recipient@sub.phishhook.lol', 'recipient@example.com'])('rejects an unrelated receiving domain: %s', async (recipient) => {
+    const input = incoming(mime('Message'))
+    input.to = recipient
+    await handleEmail(input, env, MemoryEmailMessage)
+    expect(input.setReject).toHaveBeenCalledOnce()
+    expect(input.reply).not.toHaveBeenCalled()
+  })
+
+  it('rejects a reply sender configured outside the receiving domain', async () => {
+    const input = incoming(mime('Message'))
+    await handleEmail(input, { ...env, REPLY_EMAIL: 'report@example.com' }, MemoryEmailMessage)
+    expect(input.setReject).toHaveBeenCalledWith('Email analysis is not configured.')
+    expect(input.reply).not.toHaveBeenCalled()
+  })
+
+  it('does not reply to the report address itself, preventing a reply loop', async () => {
+    const input = incoming(mime('Message'))
+    input.from = env.REPLY_EMAIL
+    await handleEmail(input, env, MemoryEmailMessage)
+    expect(input.setReject).toHaveBeenCalledOnce()
+    expect(input.reply).not.toHaveBeenCalled()
   })
 
   it('converts HTML entities, paragraphs and link destinations to plain text without rendering HTML', async () => {
