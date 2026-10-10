@@ -393,7 +393,7 @@ function App() {
       <header className="topbar">
         <div className="topbar-inner">
           <div className="brand" aria-label="Phishing Hook home">
-            <span className="brand-mark" aria-hidden="true" />
+            <img src="/favicon-32x32.png" alt="Phishing Hook" className="brand-icon" />
             <span className="brand-name">Phishing Hook</span>
           </div>
 
