@@ -28,6 +28,12 @@ Email Routing for `phishhook.lol`, and enable its catch-all rule with action
 `worker` and value `phish-hook`. The existing literal rule for `bait@phishhook.lol`
 also points to that Worker. Do not enable Email Sending.
 
+Wrangler 4.149.0 rejects Worker targets in its catch-all update command, even
+though the Cloudflare API supports them. This catch-all was configured through
+`PUT /zones/{zone_id}/email/routing/rules/catch_all` with `enabled: true`, an
+`all` matcher, and action `{ "type": "worker", "value": ["phish-hook"] }`.
+Verify it with `npx wrangler email routing rules get phishhook.lol catch-all`.
+
 Replies require incoming DMARC authentication to pass, a Message-ID, a reply to
 the envelope sender, and the same domain for the reply sender and inbound recipient.
 Cloudflare rejects reply chains with more than 100 References entries. Automated
