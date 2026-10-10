@@ -222,10 +222,13 @@ function App() {
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [progressValue, setProgressValue] = useState(0)
   const [analysisError, setAnalysisError] = useState('')
+  const [rawAiResponse, setRawAiResponse] = useState<unknown>(null)
+  const [aiModel, setAiModel] = useState('')
 
   const hasInput = draftInput.trim().length > 0
   const currentInputSignature = draftInput.trim()
   const isRunDisabled = isAnalyzing || !hasInput || currentInputSignature === lastAnalyzedInput
+  const isAnalyzeAgainDisabled = isAnalyzing || !hasInput
   const isPendingScore = !isAnalyzing && progressValue === 0
   const scoreRingProgress = Math.min(100, Math.max(0, progressValue))
   const scoreRingStyle = {
@@ -297,6 +300,9 @@ function App() {
     setProgressValue(0)
     setIsAnalyzing(true)
     setAnalysisError('')
+    setRawAiResponse(null)
+    setAiModel('')
+    setAnalysis(emptyAnalysis)
 
     try {
       const response = await fetch('/api/analyze', {
@@ -328,10 +334,12 @@ function App() {
       }
 
       const score = Number((directAnalysis as Record<string, unknown>).score)
+      const risk = (directAnalysis as Record<string, unknown>).level
+        ?? (directAnalysis as Record<string, unknown>).risk
       const nextAnalysis: Analysis = {
         score: Number.isFinite(score) ? score : 0,
-        level: typeof (directAnalysis as Record<string, unknown>).risk === 'string'
-          ? (directAnalysis as Record<string, unknown>).risk as Analysis['level']
+        level: typeof risk === 'string'
+          ? risk as Analysis['level']
           : 'Low',
         summary: typeof (directAnalysis as Record<string, unknown>).summary === 'string'
           ? (directAnalysis as Record<string, unknown>).summary as string
@@ -346,6 +354,8 @@ function App() {
           ? (directAnalysis as Record<string, unknown>).advice as string
           : 'Verify unexpected requests through a trusted channel before responding or following links.',
       }
+      setRawAiResponse(payload.rawModelResponse ?? null)
+      setAiModel(typeof payload.model === 'string' ? payload.model : '')
 
       setLastAnalyzedInput(nextInputSignature)
       setProgressValue(100)
@@ -462,7 +472,13 @@ function App() {
         return (
           <div className="page-shell">
             <div className="headline-row">
-              <div className="eyebrow">Codex AI</div>
+              <div className="eyebrow">Cloudflare Workers AI</div>
+              <div className="headline-actions">
+                <button type="button" className="secondary-btn">Share</button>
+                <button type="button" className="primary-btn" onClick={handleAnalyze} disabled={isAnalyzeAgainDisabled}>
+                  {isAnalyzing ? 'Analyzing...' : 'Analyze Again'}
+                </button>
+              </div>
             </div>
 
             <h1 className="report-title">Safety Report</h1>
@@ -520,7 +536,7 @@ function App() {
                     <strong>{totalScoreText}</strong>
                   </div>
                   <div className="risk-tag">{displayRisk}</div>
-                  <div className="risk-label">OWASP Top 10 phishing review</div>
+                  <div className="risk-label">Phishing and social-engineering review</div>
                   <h2>Risk Assessment</h2>
                   <div className="preview-label">Summary</div>
                   <p>{displaySummary}</p>
@@ -550,6 +566,21 @@ function App() {
               </div>
             </section>
 
+            {rawAiResponse !== null && (
+              <details className="ai-debug-panel" open>
+                <summary>Full AI response{aiModel ? ` · ${aiModel}` : ''}</summary>
+                <h3>Raw Cloudflare Workers AI result</h3>
+                <pre>{JSON.stringify(rawAiResponse, null, 2)}</pre>
+                {analysis.advice || analysis.flags.length > 0 ? (
+                  <>
+                    <h3>Normalized assessment shown above</h3>
+                    <pre>{JSON.stringify(analysis, null, 2)}</pre>
+                  </>
+                ) : (
+                  <p>The model returned a result, but the analyzer could not convert it into an assessment.</p>
+                )}
+              </details>
+            )}
           </div>
         )
 
