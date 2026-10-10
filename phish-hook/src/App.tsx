@@ -5,7 +5,13 @@ const navItems = ['Home', 'Analyze', 'History', 'Safety Guide'] as const
 
 type NavItem = (typeof navItems)[number]
 
-const defaultDraftMessage = `Urgent: Your bank account has been temporarily suspended due to suspicious activity. To restore access, click this link immediately and enter your credentials before 24 hours are up. If you do not act now, your account will be permanently locked.`
+type HistoryEntry = {
+  title: string
+  state: string
+  content: string
+}
+
+const threatExampleText = 'Example: Urgent: your bank account has been temporarily suspended. Click the link to restore access immediately.'
 
 const buildAnalysis = (content: string, imagePresent: boolean) => {
   const normalized = content.toLowerCase()
@@ -55,11 +61,11 @@ const buildAnalysis = (content: string, imagePresent: boolean) => {
   }
 }
 
-const historyRows = [
-  { title: 'Bank impersonation attempt', state: 'High risk · 2 hours ago' },
-  { title: 'Fake customer support message', state: 'Moderate risk · yesterday' },
-  { title: 'Invoice payment scam', state: 'High risk · 3 days ago' },
-  { title: 'Social engineering alert', state: 'Low risk · 1 week ago' },
+const defaultHistoryRows: HistoryEntry[] = [
+  { title: 'Bank impersonation attempt', state: 'High risk · 2 hours ago', content: 'Urgent: your bank account has been temporarily suspended. Verify now to avoid account closure.' },
+  { title: 'Fake customer support message', state: 'Moderate risk · yesterday', content: 'Customer support has requested a password reset and a one-time code to validate the account.' },
+  { title: 'Invoice payment scam', state: 'High risk · 3 days ago', content: 'Your invoice is overdue. Please review the attached payment link immediately to avoid penalties.' },
+  { title: 'Social engineering alert', state: 'Low risk · 1 week ago', content: 'A message asks for urgent verification from a trusted contact but contains no direct link.' },
 ]
 
 const guideItems = [
@@ -99,33 +105,172 @@ const guideItems = [
 
 function App() {
   const [activePage, setActivePage] = useState<NavItem>('Home')
-  const [theme, setTheme] = useState<'light' | 'dark'>('light')
-  const [draftInput, setDraftInput] = useState(defaultDraftMessage)
-  const [selectedImage, setSelectedImage] = useState<string | null>(null)
-  const [analysis, setAnalysis] = useState(() => buildAnalysis(defaultDraftMessage, false))
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    if (typeof window === 'undefined') {
+      return 'light'
+    }
+
+    const savedTheme = window.localStorage.getItem('phish-hook-theme')
+    return savedTheme === 'dark' || savedTheme === 'light' ? savedTheme : 'light'
+  })
+  const [draftInput, setDraftInput] = useState(() => {
+    if (typeof window === 'undefined') {
+      return ''
+    }
+
+    return window.localStorage.getItem('phish-hook-draft') ?? ''
+  })
+  const [selectedImage, setSelectedImage] = useState<string | null>(() => {
+    if (typeof window === 'undefined') {
+      return null
+    }
+
+    return window.localStorage.getItem('phish-hook-image') ?? null
+  })
+  const [analysis, setAnalysis] = useState(() => buildAnalysis('', false))
+  const [historyRows, setHistoryRows] = useState<HistoryEntry[]>(() => {
+    if (typeof window === 'undefined') {
+      return defaultHistoryRows
+    }
+
+    try {
+      const savedHistory = window.localStorage.getItem('phish-hook-history')
+      if (!savedHistory) {
+        return defaultHistoryRows
+      }
+
+      const parsedHistory = JSON.parse(savedHistory) as HistoryEntry[]
+      return Array.isArray(parsedHistory) && parsedHistory.length > 0 ? parsedHistory : defaultHistoryRows
+    } catch {
+      return defaultHistoryRows
+    }
+  })
+  const [lastAnalyzedInput, setLastAnalyzedInput] = useState('')
   const [isAnalyzing, setIsAnalyzing] = useState(false)
+  const [progressValue, setProgressValue] = useState(0)
+
+  const restoreAnalyzeDraft = () => {
+    if (typeof window === 'undefined') return
+
+    const savedDraft = window.localStorage.getItem('phish-hook-draft')
+    const savedImage = window.localStorage.getItem('phish-hook-image')
+
+    if (savedDraft !== null) {
+      setDraftInput(savedDraft)
+    }
+
+    if (savedImage !== null) {
+      setSelectedImage(savedImage)
+    }
+  }
+
+  const hasInput = draftInput.trim().length > 0 || Boolean(selectedImage)
+  const currentInputSignature = JSON.stringify({
+    text: draftInput.trim(),
+    hasImage: Boolean(selectedImage),
+    image: selectedImage ?? '',
+  })
+  const isRunDisabled = isAnalyzing || !hasInput || currentInputSignature === lastAnalyzedInput
+  const isAnalyzeAgainDisabled = isAnalyzing || !hasInput
+  const isPendingScore = !isAnalyzing && progressValue === 0
+  const scoreRingStyle = {
+    background: `conic-gradient(#ffca4d ${progressValue}%, rgba(255, 255, 255, 0.08) ${progressValue}% 100%)`,
+    transition: 'background 0.12s linear',
+  }
+  const displayScore = isAnalyzing ? Math.round(progressValue) : isPendingScore ? 0 : analysis.score
+  const displayRisk = isPendingScore ? 'Pending' : analysis.risk
+  const displaySummary = isPendingScore
+    ? 'Paste a message or upload an image to start the phishing assessment.'
+    : analysis.summary
+  const displaySignals = isPendingScore
+    ? [
+        { label: 'Urgency', value: 0, icon: '⚡' },
+        { label: 'Impersonation', value: 0, icon: '🪪' },
+        { label: 'Link Risk', value: 0, icon: '🔗' },
+        { label: 'Manipulation', value: 0, icon: '🎭' },
+      ]
+    : analysis.signals
 
   useEffect(() => {
-    if (!draftInput.trim() && !selectedImage) {
-      setAnalysis(buildAnalysis('', false))
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('phish-hook-page', activePage)
+    }
+  }, [activePage])
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('phish-hook-theme', theme)
+    }
+  }, [theme])
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('phish-hook-draft', draftInput)
+    }
+  }, [draftInput])
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      if (selectedImage) {
+        window.localStorage.setItem('phish-hook-image', selectedImage)
+      } else {
+        window.localStorage.removeItem('phish-hook-image')
+      }
+    }
+  }, [selectedImage])
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('phish-hook-history', JSON.stringify(historyRows))
+    }
+  }, [historyRows])
+
+  useEffect(() => {
+    if (!isAnalyzing) {
       return
     }
 
-    setAnalysis(buildAnalysis(draftInput, Boolean(selectedImage)))
-  }, [draftInput, selectedImage])
+    const timer = window.setInterval(() => {
+      setProgressValue((current) => {
+        if (current >= 100) {
+          window.clearInterval(timer)
+          return 100
+        }
 
-  const handleAnalyze = async () => {
+        return Math.min(current + 8, 100)
+      })
+    }, 80)
+
+    return () => window.clearInterval(timer)
+  }, [isAnalyzing])
+
+  useEffect(() => {
+    if (!isAnalyzing && (!hasInput || currentInputSignature !== lastAnalyzedInput)) {
+      setProgressValue(0)
+    }
+  }, [hasInput, isAnalyzing, currentInputSignature, lastAnalyzedInput])
+
+  const runAnalysis = async (textToAnalyze: string, imageToAnalyze: string | null, shouldAddToHistory = true) => {
+    const nextInputSignature = JSON.stringify({
+      text: textToAnalyze.trim(),
+      hasImage: Boolean(imageToAnalyze),
+      image: imageToAnalyze ?? '',
+    })
+
+    setProgressValue(0)
     setIsAnalyzing(true)
 
     try {
+      setLastAnalyzedInput(nextInputSignature)
+
       const response = await fetch('/api/analyze', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          text: draftInput,
-          image: selectedImage,
+          text: textToAnalyze,
+          image: imageToAnalyze,
         }),
       })
 
@@ -136,23 +281,65 @@ function App() {
       const payload = await response.json()
 
       if (payload.score !== undefined) {
-        setAnalysis({
+        const nextAnalysis = {
           score: Number(payload.score),
           risk: payload.risk || 'High',
           summary: payload.summary || 'Codex AI analyzed the content for phishing signals.',
           flags: Array.isArray(payload.flags) ? payload.flags : [],
           signals: Array.isArray(payload.signals) ? payload.signals : [],
-        })
+        }
+
+        setProgressValue(100)
+        setAnalysis(nextAnalysis)
+
+        if (shouldAddToHistory) {
+          const inputPreview = textToAnalyze.trim()
+          const title = inputPreview
+            ? inputPreview.length > 42
+              ? `${inputPreview.slice(0, 42)}...`
+              : inputPreview
+            : imageToAnalyze
+              ? 'Image-based phishing review'
+              : 'New message review'
+
+          setHistoryRows((currentRows) => [{
+            title,
+            state: `${nextAnalysis.risk} risk · just now`,
+            content: inputPreview || title,
+          }, ...currentRows].slice(0, 6))
+        }
         return
       }
 
       throw new Error('Invalid AI response payload')
     } catch (error) {
       console.error('AI analysis failed, using fallback heuristic analysis:', error)
-      setAnalysis(buildAnalysis(draftInput, Boolean(selectedImage)))
+      const fallback = buildAnalysis(textToAnalyze, Boolean(imageToAnalyze))
+      setProgressValue(100)
+      setAnalysis(fallback)
+
+      if (shouldAddToHistory) {
+        setHistoryRows((currentRows) => [{
+          title: textToAnalyze.trim() || 'Fallback review',
+          state: `${fallback.risk} risk · just now`,
+          content: textToAnalyze.trim() || 'Fallback review',
+        }, ...currentRows].slice(0, 6))
+      }
     } finally {
       setIsAnalyzing(false)
     }
+  }
+
+  const handleAnalyze = () => {
+    void runAnalysis(draftInput, selectedImage, true)
+  }
+
+  const handleHistoryReplay = (row: HistoryEntry) => {
+    const replayText = row.content || row.title
+    setDraftInput(replayText)
+    setSelectedImage(null)
+    setActivePage('Analyze')
+    void runAnalysis(replayText, null, true)
   }
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -162,7 +349,6 @@ function App() {
     const reader = new FileReader()
     reader.onload = () => {
       setSelectedImage(typeof reader.result === 'string' ? reader.result : null)
-      setAnalysis(buildAnalysis(draftInput, Boolean(file)))
     }
     reader.readAsDataURL(file)
   }
@@ -237,7 +423,7 @@ function App() {
               <div className="eyebrow">Codex AI</div>
               <div className="headline-actions">
                 <button type="button" className="secondary-btn">Share</button>
-                <button type="button" className="primary-btn" onClick={handleAnalyze} disabled={isAnalyzing}>
+                <button type="button" className="primary-btn" onClick={handleAnalyze} disabled={isAnalyzeAgainDisabled}>
                   {isAnalyzing ? 'Analyzing...' : 'Analyze Again'}
                 </button>
               </div>
@@ -257,7 +443,7 @@ function App() {
               <textarea
                 value={draftInput}
                 onChange={(event) => setDraftInput(event.target.value)}
-                placeholder="Paste a suspicious email, SMS, or social message here..."
+                placeholder={threatExampleText}
                 aria-label="User message to analyze"
               />
 
@@ -266,7 +452,7 @@ function App() {
                   <input type="file" accept="image/*" onChange={handleImageUpload} />
                   Upload Image
                 </label>
-                <button type="button" className="primary-btn" onClick={handleAnalyze} disabled={isAnalyzing}>
+                <button type="button" className="primary-btn" onClick={handleAnalyze} disabled={isRunDisabled}>
                   {isAnalyzing ? 'Running...' : 'Run Codex AI'}
                 </button>
               </div>
@@ -281,16 +467,16 @@ function App() {
             <section className="report-card">
               <div className="report-card-inner">
                 <div className="score-wrap">
-                  <div className="score-ring" aria-label={`Risk score ${analysis.score} out of 100`}>
-                    <span>{analysis.score}</span>
+                  <div className="score-ring" style={scoreRingStyle} aria-label={`Risk score ${displayScore} out of 100`}>
+                    <span>{displayScore}</span>
                   </div>
                 </div>
 
                 <div className="report-content">
-                  <div className="risk-tag">{analysis.risk}</div>
+                  <div className="risk-tag">{displayRisk}</div>
                   <div className="risk-label">Scam / Phishing / Emotional Manipulation</div>
                   <h2>Risk Assessment</h2>
-                  <p>{analysis.summary}</p>
+                  <p>{displaySummary}</p>
 
                   <div className="preview-label">Analyzed content preview</div>
                   <div className="preview-box">
@@ -301,7 +487,7 @@ function App() {
             </section>
 
             <section className="signal-grid">
-              {analysis.signals.slice(0, 2).map((signal) => (
+              {displaySignals.slice(0, 2).map((signal) => (
                 <div key={signal.label} className="signal-item">
                   <div className="signal-left">
                     <span className="signal-icon" aria-hidden="true">{signal.icon}</span>
@@ -313,7 +499,7 @@ function App() {
             </section>
 
             <section className="signal-grid lower-grid">
-              {analysis.signals.slice(2).map((signal) => (
+              {displaySignals.slice(2).map((signal) => (
                 <div key={signal.label} className="signal-item">
                   <div className="signal-left">
                     <span className="signal-icon" aria-hidden="true">{signal.icon}</span>
@@ -349,10 +535,15 @@ function App() {
             <section className="list-panel">
               <div className="history-list">
                 {historyRows.map((row) => (
-                  <div key={row.title} className="history-row">
+                  <button
+                    key={`${row.title}-${row.state}`}
+                    type="button"
+                    className="history-row"
+                    onClick={() => handleHistoryReplay(row)}
+                  >
                     <strong>{row.title}</strong>
                     <span>{row.state}</span>
-                  </div>
+                  </button>
                 ))}
               </div>
             </section>
@@ -392,10 +583,15 @@ function App() {
     <div className={`app-shell ${theme}`}>
       <header className="topbar">
         <div className="topbar-inner">
-          <div className="brand" aria-label="Phishing Hook home">
+          <button
+            type="button"
+            className="brand"
+            aria-label="Phishing Hook home"
+            onClick={() => setActivePage('Home')}
+          >
             <img src="/favicon-32x32.png" alt="Phishing Hook" className="brand-icon" />
             <span className="brand-name">Phishing Hook</span>
-          </div>
+          </button>
 
           <nav className="nav" aria-label="Main navigation">
             <button
@@ -412,7 +608,12 @@ function App() {
               <button
                 key={item}
                 type="button"
-                onClick={() => setActivePage(item)}
+                onClick={() => {
+                  if (item === 'Analyze') {
+                    restoreAnalyzeDraft()
+                  }
+                  setActivePage(item)
+                }}
                 className={item === activePage ? 'nav-btn active' : 'nav-btn'}
               >
                 {item}
