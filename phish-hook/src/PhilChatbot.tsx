@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import philDetective from './assets/phil-detective.png'
+import philDetective from './assets/phil-the-phish.png'
 import './PhilChatbot.css'
 
 type Message = { role: 'user' | 'assistant'; content: string }
