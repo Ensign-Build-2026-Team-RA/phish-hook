@@ -1397,3 +1397,12 @@
     display: none;
   }
 }
+/* History readability: dark theme only. Light mode remains unchanged. */
+.app-shell:not(.light) .history-row,
+.app-shell:not(.light) .history-row strong {
+  color: #edf5ff;
+}
+
+.app-shell:not(.light) .history-row span {
+  color: #b9cfe3;
+}
