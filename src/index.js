@@ -300,6 +300,9 @@ export default {
       }
 
       const text = normalizeText(payload?.text ?? payload?.message ?? payload?.content)
+      if (!text) {
+        return jsonResponse({ error: 'Enter a message to analyze.' }, 400)
+      }
       if (text.length > MAX_MESSAGE_LENGTH) {
         return jsonResponse({ error: `Message must be ${MAX_MESSAGE_LENGTH.toLocaleString()} characters or fewer.` }, 413)
       }
