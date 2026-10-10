@@ -22,6 +22,7 @@ export default [
       "node_modules/",
       ".wrangler/",
       "dist/",
+      "phish-hook/dist/",
       "hello.py",
       "worker.js",
     ],
