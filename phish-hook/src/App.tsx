@@ -1,11 +1,20 @@
-import { useState } from 'react'
+import SecurityDashboard from './SecurityDashboard'
+import { useEffect, useState } from 'react'
 import './App.css'
 
-const navItems = ['Home', 'Analyze', 'History', 'Safety Guide'] as const
+const navItems = ['Home', 'Analyze', 'Dashboard', 'History', 'Safety Guide'] as const
 
 type NavItem = (typeof navItems)[number]
 
-type Assessment = {
+type HistoryEntry = {
+  title: string
+  state: string
+  content: string
+}
+
+const threatExampleText = 'Example: Urgent: your bank account has been temporarily suspended. Click the link to restore access immediately.'
+
+type Analysis = {
   score: number
   level: 'Low' | 'Moderate' | 'High'
   summary: string
@@ -13,16 +22,19 @@ type Assessment = {
   advice: string
 }
 
-const examples = [
-  { name: 'Bank alert', text: 'URGENT: Your bank account will be suspended. Verify your password now at https://bank-verify.example/login' },
-  { name: 'Delivery notice', text: 'Your package could not be delivered. Pay a redelivery fee at https://delivery-check.example' },
-  { name: 'Normal message', text: 'Hey, are we still meeting at the library tomorrow at 3 PM?' },
-]
-const historyRows = [
-  { title: 'Bank impersonation attempt', state: 'High risk · 2 hours ago' },
-  { title: 'Fake customer support message', state: 'Moderate risk · yesterday' },
-  { title: 'Invoice payment scam', state: 'High risk · 3 days ago' },
-  { title: 'Social engineering alert', state: 'Low risk · 1 week ago' },
+const emptyAnalysis: Analysis = {
+  score: 0,
+  level: 'Low',
+  summary: 'Paste a message to start the phishing assessment.',
+  flags: [],
+  advice: '',
+}
+
+const defaultHistoryRows: HistoryEntry[] = [
+  { title: 'Bank impersonation attempt', state: 'High risk · 2 hours ago', content: 'Urgent: your bank account has been temporarily suspended. Verify now to avoid account closure.' },
+  { title: 'Fake customer support message', state: 'Moderate risk · yesterday', content: 'Customer support has requested a password reset and a one-time code to validate the account.' },
+  { title: 'Invoice payment scam', state: 'High risk · 3 days ago', content: 'Your invoice is overdue. Please review the attached payment link immediately to avoid penalties.' },
+  { title: 'Social engineering alert', state: 'Low risk · 1 week ago', content: 'A message asks for urgent verification from a trusted contact but contains no direct link.' },
 ]
 
 const guideItems = [
@@ -62,46 +74,163 @@ const guideItems = [
 
 function App() {
   const [activePage, setActivePage] = useState<NavItem>('Home')
-  const [message, setMessage] = useState('')
-  const [result, setResult] = useState<Assessment | null>(null)
-  const [submitted, setSubmitted] = useState('')
-  const [scanning, setScanning] = useState(false)
-  const [error, setError] = useState('')
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    if (typeof window === 'undefined') {
+      return 'light'
+    }
 
-  const analyze = async () => {
-    const text = message.trim()
-    if (!text || scanning) return
+    const savedTheme = window.localStorage.getItem('phish-hook-theme')
+    return savedTheme === 'dark' || savedTheme === 'light' ? savedTheme : 'light'
+  })
+  const [draftInput, setDraftInput] = useState(() => {
+    if (typeof window === 'undefined') {
+      return ''
+    }
 
-    setScanning(true)
-    setResult(null)
-    setError('')
+    return window.localStorage.getItem('phish-hook-draft') ?? ''
+  })
+  const [analysis, setAnalysis] = useState<Analysis>(emptyAnalysis)
+  const [historyRows, setHistoryRows] = useState<HistoryEntry[]>(() => {
+    if (typeof window === 'undefined') {
+      return defaultHistoryRows
+    }
+
+    try {
+      const savedHistory = window.localStorage.getItem('phish-hook-history')
+      if (!savedHistory) {
+        return defaultHistoryRows
+      }
+
+      const parsedHistory = JSON.parse(savedHistory) as HistoryEntry[]
+      return Array.isArray(parsedHistory) && parsedHistory.length > 0 ? parsedHistory : defaultHistoryRows
+    } catch {
+      return defaultHistoryRows
+    }
+  })
+  const [lastAnalyzedInput, setLastAnalyzedInput] = useState('')
+  const [isAnalyzing, setIsAnalyzing] = useState(false)
+  const [progressValue, setProgressValue] = useState(0)
+  const [analysisError, setAnalysisError] = useState('')
+
+  const hasInput = draftInput.trim().length > 0
+  const currentInputSignature = draftInput.trim()
+  const isRunDisabled = isAnalyzing || !hasInput || currentInputSignature === lastAnalyzedInput
+  const isAnalyzeAgainDisabled = isAnalyzing || !hasInput
+  const isPendingScore = !isAnalyzing && progressValue === 0
+  const scoreRingStyle = {
+    background: `conic-gradient(#ffca4d ${progressValue}%, rgba(255, 255, 255, 0.08) ${progressValue}% 100%)`,
+    transition: 'background 0.12s linear',
+  }
+  const displayScore = isAnalyzing ? Math.round(progressValue) : isPendingScore ? 0 : analysis.score
+  const displayRisk = isPendingScore ? 'Pending' : analysis.level
+  const displaySummary = isPendingScore
+    ? 'Paste a message to start the phishing assessment.'
+    : analysis.summary
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('phish-hook-page', activePage)
+    }
+  }, [activePage])
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('phish-hook-theme', theme)
+    }
+  }, [theme])
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('phish-hook-draft', draftInput)
+    }
+  }, [draftInput])
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('phish-hook-history', JSON.stringify(historyRows))
+    }
+  }, [historyRows])
+
+  useEffect(() => {
+    if (!isAnalyzing) {
+      return
+    }
+
+    const timer = window.setInterval(() => {
+      setProgressValue((current) => {
+        if (current >= 100) {
+          window.clearInterval(timer)
+          return 100
+        }
+
+        return Math.min(current + 8, 100)
+      })
+    }, 80)
+
+    return () => window.clearInterval(timer)
+  }, [isAnalyzing])
+
+  useEffect(() => {
+    if (!isAnalyzing && (!hasInput || currentInputSignature !== lastAnalyzedInput)) {
+      setProgressValue(0)
+    }
+  }, [hasInput, isAnalyzing, currentInputSignature, lastAnalyzedInput])
+
+  const runAnalysis = async (textToAnalyze: string, shouldAddToHistory = true) => {
+    const nextInputSignature = textToAnalyze.trim()
+    setProgressValue(0)
+    setIsAnalyzing(true)
+    setAnalysisError('')
 
     try {
       const response = await fetch('/api/analyze', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ text: textToAnalyze }),
       })
-      const payload = await response.json() as { analysis?: Assessment; error?: string }
 
-      if (!response.ok) {
-        throw new Error(payload.error || 'AI analysis could not be completed.')
-      }
-      if (!payload.analysis) {
-        throw new Error('The analysis service returned an unexpected response.')
-      }
+      const payload = await response.json() as { analysis?: Analysis; error?: string }
+      if (!response.ok) throw new Error(payload.error || 'AI analysis request failed.')
+      if (!payload.analysis) throw new Error('The AI analysis service returned an unexpected response.')
 
-      setSubmitted(text)
-      setResult(payload.analysis)
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'AI analysis could not be completed. Please try again.')
+      const nextAnalysis = payload.analysis
+      setLastAnalyzedInput(nextInputSignature)
+      setProgressValue(100)
+      setAnalysis(nextAnalysis)
+
+      if (shouldAddToHistory) {
+        const inputPreview = textToAnalyze.trim()
+        const title = inputPreview.length > 42 ? `${inputPreview.slice(0, 42)}...` : inputPreview
+        setHistoryRows((currentRows) => [{
+          title,
+          state: `${nextAnalysis.level} risk · just now`,
+          content: inputPreview,
+        }, ...currentRows].slice(0, 6))
+      }
+    } catch (error) {
+      setAnalysisError(error instanceof Error ? error.message : 'AI analysis failed. Please try again.')
     } finally {
-      setScanning(false)
+      setIsAnalyzing(false)
     }
+  }
+
+  const handleAnalyze = () => {
+    void runAnalysis(draftInput, true)
+  }
+
+  const handleHistoryReplay = (row: HistoryEntry) => {
+    const replayText = row.content || row.title
+    setDraftInput(replayText)
+    setActivePage('Analyze')
+    void runAnalysis(replayText, true)
   }
 
   const renderPage = () => {
     switch (activePage) {
+      case 'Dashboard':
+        return <SecurityDashboard />
+
       case 'Home':
         return (
           <div className="page-shell">
@@ -110,7 +239,7 @@ function App() {
                 <div className="eyebrow">Threat intelligence</div>
                 <h1 className="hero-title">Know when a message is trying to manipulate you.</h1>
                 <p>
-                  PhishHook helps people evaluate suspicious emails, texts, and social prompts by surfacing urgency,
+                  Phishing Hook helps people evaluate suspicious emails, texts, and social prompts by surfacing urgency,
                   impersonation patterns, and coercive language before trust is lost.
                 </p>
                 <button type="button" className="primary-btn" onClick={() => setActivePage('Analyze')}>Try the scanner →</button>
@@ -152,8 +281,8 @@ function App() {
               </article>
               <article className="feature-card">
                 <div className="feature-icon">🧠</div>
-                <h3>Explainable indicators</h3>
-                <p>Cloudflare Workers AI reviews messages for suspicious links, impersonation, and social-engineering tactics.</p>
+                <h3>Cloudflare Workers AI</h3>
+                <p>Gemma reviews messages for suspicious links, impersonation, and social-engineering tactics.</p>
               </article>
               <article className="feature-card">
                 <div className="feature-icon">🛡️</div>
@@ -165,85 +294,103 @@ function App() {
         )
 
       case 'Analyze':
-         return (
-           <div className="page-shell">
-             <div className="eyebrow">Interactive message scanner</div>
-             <h1 className="report-title">Analyze a message</h1>
-             <section className="scanner-panel">
-               <label htmlFor="scan-input" className="scanner-label">Paste a suspicious SMS, email, or DM</label>
-               <textarea
-                 id="scan-input"
-                 className="scanner-input"
-                 value={message}
-                 maxLength={5000}
-                 onChange={event => { setMessage(event.target.value); setResult(null); setError('') }}
-                 placeholder="Paste a message here. Avoid including passwords or other sensitive information."
-                 rows={6}
-               />
-               <div className="sample-row">
-                 {examples.map(example => (
-                   <button type="button" className="secondary-btn" key={example.name}
-                     onClick={() => { setMessage(example.text); setResult(null); setError('') }}>
-                     {example.name}
-                   </button>
-                 ))}
-               </div>
-               <button type="button" className="primary-btn scan-button"
-                 disabled={!message.trim() || scanning} onClick={analyze}>
-                 {scanning ? 'Scanning message…' : '🔍 Scan for Threats'}
-               </button>
-               {error && <p className="scanner-note scanner-error" role="alert">{error}</p>}
-               <p className="scanner-note">Analysis is sent to Cloudflare Workers AI. Avoid including passwords or verification codes. AI results can be wrong and are not a guarantee of safety.</p>
-             </section>
-             {result && (
-               <section className="report-card scanner-results" aria-live="polite">
-                 <div className="report-card-inner">
-                   <div className="score-wrap">
-                     <div className="score-ring" style={{ background: `conic-gradient(${result.level === 'High' ? '#ff7a7a' : result.level === 'Moderate' ? '#ffca4d' : '#6ee7a7'} 0 ${result.score}%, rgba(255,255,255,.08) ${result.score}% 100%)` }}
-                       aria-label={`AI risk indicator score ${result.score} out of 100`}>
-                       <span>{result.score}</span>
-                     </div>
-                   </div>
-                   <div className="report-content">
-                     <div className="risk-tag">{result.level} indicators</div>
-                     <div className="risk-label">AI risk indicator score / 100</div>
-                     <h2>Safety Report</h2>
-                     <p>{result.summary} This score is a risk indicator, not a probability of fraud.</p>
-                     <div className="preview-label">Submitted message</div>
-                     <div className="preview-box"><p className="submitted-message">{submitted}</p></div>
-                   </div>
-                 </div>
-                 <div className="flag-panel">
-                   <div className="flag-header">Detected warning signs</div>
-                   <div className="flag-list">
-                     {result.flags.length ? result.flags.map(flag => <span className="flag-badge" key={flag}>{flag}</span>) : <p>No basic rule matched.</p>}
-                   </div>
-                 </div>
-                 <div className="flag-panel">
-                   <div className="flag-header">Recommended next step</div>
-                   <p>{result.advice}</p>
-                 </div>
-               </section>
-             )}
-           </div>
-         )
+        return (
+          <div className="page-shell">
+            <div className="headline-row">
+              <div className="eyebrow">Codex AI</div>
+              <div className="headline-actions">
+                <button type="button" className="secondary-btn">Share</button>
+                <button type="button" className="primary-btn" onClick={handleAnalyze} disabled={isAnalyzeAgainDisabled}>
+                  {isAnalyzing ? 'Analyzing...' : 'Analyze Again'}
+                </button>
+              </div>
+            </div>
+
+            <h1 className="report-title">Safety Report</h1>
+
+            <section className="analysis-input-panel">
+              <div className="input-panel-header">
+                <div>
+                  <div className="preview-label">Paste a message</div>
+                  <h3>Threat intake</h3>
+                </div>
+                <span className="assistant-status">AI ready</span>
+              </div>
+
+              <textarea
+                value={draftInput}
+                onChange={(event) => setDraftInput(event.target.value)}
+                maxLength={5000}
+                placeholder={threatExampleText}
+                aria-label="User message to analyze"
+              />
+
+              <div className="analysis-actions">
+                <button type="button" className="primary-btn" onClick={handleAnalyze} disabled={isRunDisabled}>
+                  {isAnalyzing ? 'Analyzing...' : 'Analyze with Cloudflare AI'}
+                </button>
+              </div>
+              {analysisError && <p className="scanner-note scanner-error" role="alert">{analysisError}</p>}
+              <p className="scanner-note">Messages are sent to Cloudflare Workers AI. Avoid including passwords or verification codes. AI results can be wrong and are not a guarantee of safety.</p>
+            </section>
+
+            <section className="report-card">
+              <div className="report-card-inner">
+                <div className="score-wrap">
+                  <div className="score-ring" style={scoreRingStyle} aria-label={`Risk score ${displayScore} out of 100`}>
+                    <span>{displayScore}</span>
+                  </div>
+                </div>
+
+                <div className="report-content">
+                  <div className="risk-tag">{displayRisk}</div>
+                  <div className="risk-label">Scam / Phishing / Emotional Manipulation</div>
+                  <h2>Risk Assessment</h2>
+                  <p>{displaySummary}</p>
+
+                  <div className="preview-label">Analyzed content preview</div>
+                  <div className="preview-box">
+                    <p>{draftInput || 'No incoming content yet. Paste a message to start analysis.'}</p>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section className="flag-panel">
+              <div className="flag-header">Detected Flags and Recommended Next Step</div>
+              <p>{analysis.advice}</p>
+              <div className="flag-list">
+                {analysis.flags.map((flag) => (
+                  <span key={flag} className="flag-badge">
+                    {flag}
+                  </span>
+                ))}
+              </div>
+            </section>
+          </div>
+        )
 
       case 'History':
         return (
           <div className="page-shell">
             <div className="section-header-row">
               <div className="eyebrow">Illustrative history examples</div>
-              <button type="button" className="primary-btn small-btn">New Analysis</button>
+              <button type="button" className="primary-btn small-btn" onClick={() => setActivePage('Analyze')}>New Analysis</button>
             </div>
-            <h1 className="report-title">History (demo examples)</h1>
+            <h1 className="report-title">History</h1>
 
             <section className="list-panel">
               <div className="history-list">
                 {historyRows.map((row) => (
-                  <div key={row.title} className="history-row">
+                  <button
+                    key={`${row.title}-${row.state}`}
+                    type="button"
+                    className="history-row"
+                    onClick={() => handleHistoryReplay(row)}
+                  >
                     <strong>{row.title}</strong>
                     <span>{row.state}</span>
-                  </div>
+                  </button>
                 ))}
               </div>
             </section>
@@ -255,7 +402,7 @@ function App() {
           <div className="page-shell">
             <div className="section-header-row">
               <div className="eyebrow">Stay alert</div>
-              <button type="button" className="primary-btn small-btn">Run Check</button>
+              <button type="button" className="primary-btn small-btn" onClick={() => setActivePage('Analyze')}>Run Check</button>
             </div>
             <h1 className="report-title">Safety Guide</h1>
 
@@ -280,15 +427,30 @@ function App() {
   }
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${theme}`}>
       <header className="topbar">
         <div className="topbar-inner">
-          <div className="brand" aria-label="PhishHook home">
-            <span className="brand-mark" aria-hidden="true" />
-            <span className="brand-name">PhishHook</span>
-          </div>
+          <button
+            type="button"
+            className="brand"
+            aria-label="Phishing Hook home"
+            onClick={() => setActivePage('Home')}
+          >
+            <img src="/favicon-32x32.png" alt="Phishing Hook" className="brand-icon" />
+            <span className="brand-name">Phishing Hook</span>
+          </button>
 
           <nav className="nav" aria-label="Main navigation">
+            <button
+              id="toggle-mode"
+              type="button"
+              className="nav-btn mode-toggle"
+              aria-label={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+              onClick={() => setTheme((current) => (current === 'light' ? 'dark' : 'light'))}
+            >
+              <i className={theme === 'dark' ? 'fa-regular fa-sun' : 'fa-regular fa-moon'} aria-hidden="true" />
+            </button>
+
             {navItems.map((item) => (
               <button
                 key={item}
