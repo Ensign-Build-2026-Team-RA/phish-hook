@@ -1,10 +1,21 @@
 import SecurityDashboard from './SecurityDashboard'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { MAX_MESSAGE_LENGTH, readAnalysisFragment } from '../../shared/analysis-link'
+import philBackground from './assets/phil-background-source.png'
+import philDetective from './assets/phil-detective.png'
 import './App.css'
 
-const navItems = ['Home', 'Analyze', 'Dashboard', 'History', 'Safety Guide'] as const
+const navItems = ['Home', 'Safety Guide', 'Dashboard', 'History', 'Analyze'] as const
 
 type NavItem = (typeof navItems)[number]
+
+const navLabels: Record<NavItem, string> = {
+  Home: 'Home',
+  'Safety Guide': 'Training',
+  Dashboard: 'Simulations',
+  History: 'Features',
+  Analyze: 'Spot a Phish',
+}
 
 type HistoryEntry = {
   title: string
@@ -184,7 +195,13 @@ const guideItems = [
 ]
 
 function App() {
-  const [activePage, setActivePage] = useState<NavItem>('Home')
+  const [emailPrefill] = useState(() => typeof window === 'undefined' ? null : readAnalysisFragment(window.location.hash))
+  const privateEmailSession = useRef(emailPrefill !== null)
+  const [isEmailSession, setIsEmailSession] = useState(emailPrefill !== null)
+  const [emailToken, setEmailToken] = useState<string | null>(null)
+  const [emailLoadAttempt, setEmailLoadAttempt] = useState(0)
+  const [isLoadingEmail, setIsLoadingEmail] = useState(Boolean(emailPrefill?.token))
+  const [activePage, setActivePage] = useState<NavItem>(emailPrefill ? 'Analyze' : 'Home')
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     if (typeof window === 'undefined') {
       return 'light'
@@ -194,6 +211,7 @@ function App() {
     return savedTheme === 'dark' || savedTheme === 'light' ? savedTheme : 'dark'
   })
   const [draftInput, setDraftInput] = useState(() => {
+    if (emailPrefill) return emailPrefill.message
     if (typeof window === 'undefined') {
       return ''
     }
@@ -221,14 +239,14 @@ function App() {
   const [lastAnalyzedInput, setLastAnalyzedInput] = useState('')
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [progressValue, setProgressValue] = useState(0)
-  const [analysisError, setAnalysisError] = useState('')
+  const [analysisError, setAnalysisError] = useState(emailPrefill?.error ?? '')
   const [rawAiResponse, setRawAiResponse] = useState<unknown>(null)
   const [aiModel, setAiModel] = useState('')
 
   const hasInput = draftInput.trim().length > 0
   const currentInputSignature = draftInput.trim()
-  const isRunDisabled = isAnalyzing || !hasInput || currentInputSignature === lastAnalyzedInput
-  const isAnalyzeAgainDisabled = isAnalyzing || !hasInput
+  const isRunDisabled = isLoadingEmail || isAnalyzing || !hasInput || currentInputSignature === lastAnalyzedInput
+  const isAnalyzeAgainDisabled = isLoadingEmail || isAnalyzing || !hasInput
   const isPendingScore = !isAnalyzing && progressValue === 0
   const scoreRingProgress = Math.min(100, Math.max(0, progressValue))
   const scoreRingStyle = {
@@ -240,6 +258,63 @@ function App() {
     ? 'Paste a message to start the phishing assessment.'
     : analysis.summary
   const totalScoreText = `${displayScore}/100`
+  useEffect(() => {
+    const consumeFragment = () => {
+      const prefill = readAnalysisFragment(window.location.hash)
+      if (!prefill) return
+      privateEmailSession.current = true
+      setIsEmailSession(true)
+      setActivePage('Analyze')
+      setDraftInput(prefill.message)
+      setEmailToken(prefill.token ?? null)
+      setIsLoadingEmail(Boolean(prefill.token))
+      setEmailLoadAttempt(0)
+      setAnalysisError(prefill.error)
+      setLastAnalyzedInput('')
+      setAnalysis(emptyAnalysis)
+      setRawAiResponse(null)
+      setProgressValue(0)
+      // Remove the private token (or legacy message) from browser history.
+      window.history.replaceState(null, '', window.location.pathname + window.location.search)
+    }
+    consumeFragment()
+    window.addEventListener('hashchange', consumeFragment)
+    return () => window.removeEventListener('hashchange', consumeFragment)
+  }, [])
+  useEffect(() => {
+    if (!emailToken) return
+    const controller = new AbortController()
+    const loadEmail = async () => {
+      setIsLoadingEmail(true)
+      setAnalysisError('')
+      try {
+        const response = await fetch('/api/email-message', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: emailToken }),
+          cache: 'no-store',
+          credentials: 'omit',
+          referrerPolicy: 'no-referrer',
+          signal: controller.signal,
+        })
+        const result = await response.json()
+        if (controller.signal.aborted) return
+        if (!response.ok) {
+          setAnalysisError(typeof result.error === 'string' ? result.error : 'This email link is unavailable. Please retry or paste the message manually.')
+        } else if (typeof result.message !== 'string' || !result.message.trim() || result.message.length > MAX_MESSAGE_LENGTH) {
+          setAnalysisError('This email link could not be read safely. Paste the message manually.')
+        } else {
+          setDraftInput(result.message)
+        }
+      } catch {
+        if (!controller.signal.aborted) setAnalysisError('The email link could not be loaded. Check your connection and retry.')
+      } finally {
+        if (!controller.signal.aborted) setIsLoadingEmail(false)
+      }
+    }
+    void loadEmail()
+    return () => controller.abort()
+  }, [emailToken, emailLoadAttempt])
   useEffect(() => {
     if (typeof window !== 'undefined') {
       window.localStorage.setItem('phish-hook-page', activePage)
@@ -254,7 +329,7 @@ function App() {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      window.localStorage.setItem('phish-hook-draft', draftInput)
+      if (!privateEmailSession.current) window.localStorage.setItem('phish-hook-draft', draftInput)
     }
   }, [draftInput])
 
@@ -324,6 +399,8 @@ function App() {
         }
       }
 
+      setRawAiResponse(payload.rawModelResponse ?? null)
+      setAiModel(typeof payload.model === 'string' ? payload.model : '')
       if (!response.ok) {
         throw new Error(typeof payload.error === 'string' ? payload.error : `AI analysis request failed (${response.status}).`)
       }
@@ -349,19 +426,42 @@ function App() {
           : [],
         explanation: typeof (directAnalysis as Record<string, unknown>).explanation === 'string'
           ? (directAnalysis as Record<string, unknown>).explanation as string
-          : 'Review the AI summary and detected flags above. Verify unexpected requests through a trusted channel.',
+          : 'Review the AI summary and detected flags. Verify unexpected requests through a trusted channel.',
         advice: typeof (directAnalysis as Record<string, unknown>).advice === 'string'
           ? (directAnalysis as Record<string, unknown>).advice as string
           : 'Verify unexpected requests through a trusted channel before responding or following links.',
       }
-      setRawAiResponse(payload.rawModelResponse ?? null)
-      setAiModel(typeof payload.model === 'string' ? payload.model : '')
-
       setLastAnalyzedInput(nextInputSignature)
       setProgressValue(100)
       setAnalysis(nextAnalysis)
 
-      if (shouldAddToHistory) {
+      // Only save successful, valid AI scans from normal (non-email) sessions.
+      // Email-import sessions deliberately remain private and are never persisted.
+      if (!privateEmailSession.current && Number.isFinite(score) && score >= 0 && score <= 100) {
+        try {
+          const storageKey = 'phish-hook-ai-scans'
+          const previous = JSON.parse(window.localStorage.getItem(storageKey) || '[]') as unknown
+          const savedScans = Array.isArray(previous) ? previous : []
+          const newScan = {
+            id: window.crypto.randomUUID(),
+            score: nextAnalysis.score,
+            level: nextAnalysis.level,
+            summary: nextAnalysis.summary,
+            flags: nextAnalysis.flags,
+            preview: textToAnalyze.trim().slice(0, 120),
+            createdAt: new Date().toISOString(),
+          }
+          window.localStorage.setItem(
+            storageKey,
+            JSON.stringify([newScan, ...savedScans].slice(0, 100)),
+          )
+          window.dispatchEvent(new Event('phish-hook-scans-updated'))
+        } catch (storageError) {
+          console.warn('Could not save scan history:', storageError)
+        }
+      }
+
+      if (shouldAddToHistory && !privateEmailSession.current) {
         const inputPreview = textToAnalyze.trim()
         const title = inputPreview.length > 42 ? `${inputPreview.slice(0, 42)}...` : inputPreview
         setHistoryRows((currentRows) => [{
@@ -408,47 +508,55 @@ function App() {
 
       case 'Home':
         return (
-          <div className="page-shell">
-            <div className="hero-panel">
-              <div className="hero-copy">
-                <div className="eyebrow">Threat intelligence</div>
-                <h1 className="hero-title">Know when a message is trying to manipulate you.</h1>
-                <p>
-                  Phishing Hook helps people evaluate suspicious emails, texts, and social prompts by surfacing urgency,
-                  impersonation patterns, and coercive language before trust is lost.
-                </p>
-                <button type="button" className="primary-btn" onClick={() => setActivePage('Analyze')}>Try the scanner →</button>
-                <div className="hero-stats" style={{ marginTop: 18 }}>
-                  <span className="stat-pill"><strong>4x</strong> faster review</span>
-                  <span className="stat-pill"><strong>24/7</strong> risk awareness</span>
-                  <span className="stat-pill"><strong>AI</strong> guided checks</span>
-                </div>
+          <main className="landing-page">
+            <section className="phil-hero" aria-labelledby="phil-hero-title">
+              <div className="phil-background" aria-hidden="true">
+                <img src={philBackground} alt="" />
               </div>
 
-              <div className="preview-card">
-                <div className="preview-header">
-                  <span>Current signal</span>
-                  <span>High</span>
+              <svg className="hero-net hero-net-left" viewBox="0 0 620 210" preserveAspectRatio="none" aria-hidden="true">
+                <path d="M0 110C110 12 220 208 330 104S520 10 620 84" />
+                <path d="M0 130C110 32 220 228 330 124S520 30 620 104" />
+                <path d="M0 150C110 52 220 248 330 144S520 50 620 124" />
+                <path d="M0 170C110 72 220 268 330 164S520 70 620 144" />
+                <path d="M28 83C72 121 86 166 80 208M86 57C132 103 147 157 140 210M150 48C190 96 205 154 200 210M220 58C255 104 269 158 266 210M292 75C320 117 335 165 336 210M366 69C396 111 411 161 410 210M442 46C478 91 493 151 486 210M520 40C558 87 574 146 562 205" />
+              </svg>
+
+              <div className="hero-bubbles hero-bubbles-left" aria-hidden="true">
+                <span /><span /><span /><span />
+              </div>
+              <div className="hero-bubbles hero-bubbles-right" aria-hidden="true">
+                <span /><span /><span />
+              </div>
+
+              <div className="phil-hero-inner">
+                <div className="phil-hero-copy">
+                  <div className="hero-kicker">Meet Phil, your online detective</div>
+                  <h1 id="phil-hero-title">Don’t Bite<br />the Hook!</h1>
+                  <p>Learn to spot scams before they catch you with Phil, your trusty online detective.</p>
+
+                  <div className="phil-hero-actions">
+                    <button type="button" className="hero-primary" onClick={() => setActivePage('Safety Guide')}>Start Training Now</button>
+                    <button type="button" className="hero-secondary" onClick={() => setActivePage('Analyze')}>Spot a Phish</button>
+                  </div>
+
+                  <aside className="phil-tip" aria-label="Daily tip from Phil">
+                    <div className="phil-tip-label">Daily tip from Phil</div>
+                    <img src={philDetective} alt="Phil the phishing detective" />
+                    <p>If an email sounds fishy, it probably is. Check the sender!</p>
+                  </aside>
                 </div>
-                <div className="mini-score"><span>62</span></div>
-                <div className="preview-grid">
-                  <div className="preview-row">
-                    <strong>Urgency</strong>
-                    <div className="bar"><span style={{ width: '82%' }} /></div>
-                  </div>
-                  <div className="preview-row">
-                    <strong>Impersonation</strong>
-                    <div className="bar"><span style={{ width: '75%' }} /></div>
-                  </div>
-                  <div className="preview-row">
-                    <strong>Manipulation</strong>
-                    <div className="bar"><span style={{ width: '88%' }} /></div>
-                  </div>
+
+                <div className="phil-hero-art" aria-hidden="true">
+                  <div className="fishbone fishbone-one">&gt;≡≡≡&lt;</div>
+                  <div className="fishbone fishbone-two">&gt;≡≡&lt;</div>
+                  <img src={philDetective} alt="" />
                 </div>
               </div>
-            </div>
+            </section>
 
-            <div className="feature-grid">
+            <section className="page-shell landing-features" aria-label="Phishing Hook features">
+              <div className="feature-grid">
               <article className="feature-card">
                 <div className="feature-icon">⚡</div>
                 <h3>Fast scanning</h3>
@@ -464,8 +572,9 @@ function App() {
                 <h3>Safer decisions</h3>
                 <p>Clarify what is risky, what requires verification, and what should be treated as a cue to pause.</p>
               </article>
-            </div>
-          </div>
+              </div>
+            </section>
+          </main>
         )
 
       case 'Analyze':
@@ -494,19 +603,23 @@ function App() {
 
               <textarea
                 value={draftInput}
+                disabled={isLoadingEmail}
                 onChange={(event) => setDraftInput(event.target.value)}
-                maxLength={5000}
+                maxLength={MAX_MESSAGE_LENGTH}
                 placeholder={threatExampleText}
                 aria-label="User message to analyze"
               />
 
               <div className="analysis-actions">
-                <button type="button" className="secondary-btn" onClick={loadOwaspTop10Test}>Load OWASP Top 10 Test</button>
+                <button type="button" className="secondary-btn" onClick={loadOwaspTop10Test} disabled={isLoadingEmail}>Load OWASP Top 10 Test</button>
                 <button type="button" className="primary-btn" onClick={handleAnalyze} disabled={isRunDisabled}>
                   {isAnalyzing ? 'Analyzing...' : 'Analyze with Cloudflare AI'}
                 </button>
               </div>
               {analysisError && <p className="scanner-note scanner-error" role="alert">{analysisError}</p>}
+              {isLoadingEmail && <p className="scanner-note" role="status">Loading your emailed message...</p>}
+              {emailToken && analysisError && !isLoadingEmail && <button type="button" className="secondary-btn" onClick={() => setEmailLoadAttempt(attempt => attempt + 1)}>Retry loading email</button>}
+              {isEmailSession && <p className="scanner-note">Emailed links temporarily store the message until the link expires. Imported messages are excluded from saved drafts and history. Review the message and click Analyze to start.</p>}
               <p className="scanner-note">Messages are sent to Cloudflare Workers AI. Avoid including passwords or verification codes. AI results can be wrong and are not a guarantee of safety.</p>
             </section>
 
@@ -651,7 +764,7 @@ function App() {
             onClick={() => setActivePage('Home')}
           >
             <img src="/favicon-32x32.png" alt="Phishing Hook" className="brand-icon" />
-            <span className="brand-name">Phishing Hook</span>
+            <span className="brand-name"><span>Phishing</span><span>Hook</span></span>
           </button>
 
           <nav className="nav" aria-label="Main navigation">
@@ -670,9 +783,9 @@ function App() {
                 key={item}
                 type="button"
                 onClick={() => setActivePage(item)}
-                className={item === activePage ? 'nav-btn active' : 'nav-btn'}
+                className={`${item === activePage ? 'nav-btn active' : 'nav-btn'}${item === 'Analyze' ? ' nav-cta' : ''}`}
               >
-                {item}
+                {navLabels[item]}
               </button>
             ))}
           </nav>

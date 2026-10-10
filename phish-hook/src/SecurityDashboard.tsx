@@ -1,57 +1,79 @@
-
 import { useEffect, useState } from 'react'
 import './SecurityDashboard.css'
 
-type Threat = {
-  name: string
-  count: number
-  color: string
-  icon: string
+export type SavedScan = {
+  id: string
+  score: number
+  level: 'Low' | 'Moderate' | 'High'
+  summary: string
+  flags: string[]
+  preview: string
+  createdAt: string
 }
 
-const threats: Threat[] = [
-  { name: 'Suspicious Links', count: 2, color: '#ff5975', icon: '🔗' },
-  { name: 'Impersonation', count: 1, color: '#5b9dff', icon: '🛡️' },
-  { name: 'Urgency Tactics', count: 3, color: '#ffb454', icon: '⚠️' },
-]
+const STORAGE_KEY = 'phish-hook-ai-scans'
+const MAX_SCANS = 100
 
-const chartValues = [25, 30, 27, 38, 34, 46, 42, 57, 49, 63, 55, 72, 64, 78, 70, 85, 76, 90, 82, 94]
+function readScans(): SavedScan[] {
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY)
+    if (!raw) return []
+    const parsed: unknown = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter((item): item is SavedScan => {
+      if (!item || typeof item !== 'object') return false
+      const scan = item as Record<string, unknown>
+      return typeof scan.id === 'string' &&
+        typeof scan.score === 'number' && Number.isFinite(scan.score) &&
+        scan.score >= 0 && scan.score <= 100 &&
+        (scan.level === 'Low' || scan.level === 'Moderate' || scan.level === 'High') &&
+        typeof scan.summary === 'string' &&
+        typeof scan.preview === 'string' &&
+        typeof scan.createdAt === 'string' &&
+        Array.isArray(scan.flags)
+    }).slice(0, MAX_SCANS)
+  } catch {
+    return []
+  }
+}
+
+function countFlags(scans: SavedScan[], words: string[]): number {
+  return scans.reduce((total, scan) => total + scan.flags.filter((flag) =>
+    words.some((word) => flag.toLowerCase().includes(word))
+  ).length, 0)
+}
 
 export default function SecurityDashboard() {
-  const [progress, setProgress] = useState(0)
-  const [scanning, setScanning] = useState(false)
-  const [completed, setCompleted] = useState(false)
+  const [scans, setScans] = useState<SavedScan[]>(readScans)
 
   useEffect(() => {
-    if (!scanning) return
-
-    const timer = window.setInterval(() => {
-      setProgress((previous) => {
-        if (previous >= 100) {
-          window.clearInterval(timer)
-          return 100
-        }
-        return Math.min(previous + 2, 100)
-      })
-    }, 60)
-
-    return () => window.clearInterval(timer)
-  }, [scanning])
-
-  useEffect(() => {
-    if (progress === 100 && scanning) {
-      setScanning(false)
-      setCompleted(true)
+    const refresh = () => setScans(readScans())
+    window.addEventListener('storage', refresh)
+    window.addEventListener('phish-hook-scans-updated', refresh)
+    window.addEventListener('focus', refresh)
+    return () => {
+      window.removeEventListener('storage', refresh)
+      window.removeEventListener('phish-hook-scans-updated', refresh)
+      window.removeEventListener('focus', refresh)
     }
-  }, [progress, scanning])
+  }, [])
 
-  function startScan() {
-    setProgress(0)
-    setCompleted(false)
-    setScanning(true)
-  }
-
+  const total = scans.length
+  const high = scans.filter((scan) => scan.level === 'High').length
+  const moderate = scans.filter((scan) => scan.level === 'Moderate').length
+  const low = scans.filter((scan) => scan.level === 'Low').length
+  const average = total ? Math.round(scans.reduce((sum, scan) => sum + scan.score, 0) / total) : 0
+  const latest = scans[0]
   const circle = 2 * Math.PI * 54
+  const recent = scans.slice(0, 20).reverse()
+  const points = recent.map((scan, index) => {
+    const x = recent.length === 1 ? 200 : (index / (recent.length - 1)) * 400
+    const y = 150 - scan.score * 1.4
+    return `${x},${y}`
+  }).join(' ')
+  const links = countFlags(scans, ['link', 'url', 'domain', 'website'])
+  const impersonation = countFlags(scans, ['impersonat', 'spoof', 'sender', 'identity'])
+  const urgency = countFlags(scans, ['urgent', 'urgency', 'pressure', 'immediate', 'deadline'])
 
   return (
     <main className="security-dashboard">
@@ -59,170 +81,118 @@ export default function SecurityDashboard() {
         <div>
           <div className="sd-eyebrow">PHISHHOOK / SECURITY CENTER</div>
           <h1>Security Dashboard</h1>
-          <p>Interactive phishing threat visualization</p>
+          <p>Real results from completed AI scans in this browser</p>
         </div>
-        <span className="sd-demo-badge">● DEMO MODE</span>
+        <span className="sd-demo-badge">● LOCAL SCAN DATA</span>
       </div>
 
       <div className="sd-main-grid">
         <section className="sd-card">
-          <h2>Safety Score</h2>
-          <div className="sd-gauge sd-green">
+          <h2>Average Risk Score</h2>
+          <div className={`sd-gauge ${average >= 60 ? '' : average >= 25 ? 'sd-blue' : 'sd-green'}`}>
             <svg viewBox="0 0 140 140" aria-hidden="true">
               <circle className="sd-track" cx="70" cy="70" r="54" />
-              <circle
-                className="sd-progress-circle"
-                cx="70"
-                cy="70"
-                r="54"
-                strokeDasharray={circle}
-                strokeDashoffset={circle * 0.08}
-              />
+              <circle className="sd-progress-circle" cx="70" cy="70" r="54"
+                strokeDasharray={circle} strokeDashoffset={circle * (1 - average / 100)} />
             </svg>
             <div className="sd-gauge-label">
-              <strong>92</strong>
-              <span>LOWER RISK</span>
+              <strong>{total ? average : '—'}</strong>
+              <span>{total ? 'RISK / 100' : 'NO SCANS'}</span>
             </div>
           </div>
-          <p className="sd-note">Illustrative score for a sample message.</p>
+          <p className="sd-note">{total ? `Average across ${total} saved AI scan${total === 1 ? '' : 's'}. Higher means more risk.` : 'Analyze a message to start collecting real results.'}</p>
         </section>
 
         <section className="sd-card">
-          <h2>Scan Progress</h2>
+          <h2>Completed AI Scans</h2>
           <div className="sd-gauge sd-blue">
             <svg viewBox="0 0 140 140" aria-hidden="true">
               <circle className="sd-track" cx="70" cy="70" r="54" />
-              <circle
-                className="sd-progress-circle"
-                cx="70"
-                cy="70"
-                r="54"
-                strokeDasharray={circle}
-                strokeDashoffset={circle * (1 - progress / 100)}
-              />
+              <circle className="sd-progress-circle" cx="70" cy="70" r="54"
+                strokeDasharray={circle} strokeDashoffset={total ? 0 : circle} />
             </svg>
             <div className="sd-gauge-label">
-              <strong>{progress}%</strong>
-              <span>
-                {scanning ? 'SCANNING...' : completed ? 'COMPLETE' : 'READY'}
-              </span>
+              <strong>{total}</strong>
+              <span>AI SCANS</span>
             </div>
           </div>
-          <button
-            className="sd-scan-button"
-            onClick={startScan}
-            disabled={scanning}
-          >
-            {scanning ? 'Scanning...' : '▶ Start Demo Scan'}
-          </button>
+          <p className="sd-note">{total ? `${high} high-risk detection${high === 1 ? '' : 's'} recorded.` : 'No completed AI scans recorded yet.'}</p>
         </section>
 
         <section className="sd-card">
-          <h2>Detected Indicators</h2>
+          <h2>Detected Risk Levels</h2>
           <div className="sd-threat-list">
-            {threats.map((threat) => (
-              <div className="sd-threat-row" key={threat.name}>
-                <span className="sd-threat-name">
-                  <span>{threat.icon}</span> {threat.name}
-                </span>
-                <strong style={{ color: threat.color }}>
-                  {threat.count}
-                </strong>
+            {[
+              { name: 'High Risk', count: high, color: '#ff5975', icon: '🔴' },
+              { name: 'Moderate Risk', count: moderate, color: '#ffb454', icon: '🟠' },
+              { name: 'Low Risk', count: low, color: '#39cfa6', icon: '🟢' },
+            ].map((item) => (
+              <div className="sd-threat-row" key={item.name}>
+                <span className="sd-threat-name"><span>{item.icon}</span> {item.name}</span>
+                <strong style={{ color: item.color }}>{item.count}</strong>
               </div>
             ))}
           </div>
-          <p className="sd-note">Example indicators, not live detections.</p>
+          <p className="sd-note">Risk levels returned by completed AI analyses.</p>
         </section>
       </div>
 
       <div className="sd-bottom-grid">
         <section className="sd-card">
-          <h2>Threat Indicators</h2>
+          <h2>AI-Reported Indicators</h2>
           <div className="sd-stats">
-            <div>
-              <span>Suspicious URLs</span>
-              <strong>02</strong>
-            </div>
-            <div>
-              <span>Social Engineering</span>
-              <strong>03</strong>
-            </div>
-            <div>
-              <span>Identity Spoofing</span>
-              <strong>01</strong>
-            </div>
+            <div><span>Suspicious Links</span><strong>{links}</strong></div>
+            <div><span>Impersonation</span><strong>{impersonation}</strong></div>
+            <div><span>Urgency Tactics</span><strong>{urgency}</strong></div>
           </div>
-          <div className="sd-bars">
-            {[45, 72, 38, 85, 60, 93, 52, 78, 42, 67, 88, 57].map(
-              (height, index) => (
-                <div
-                  key={index}
-                  style={{ height: `${height}%` }}
-                />
-              )
-            )}
-          </div>
+          <p className="sd-note">Counts of matching AI flag labels across saved scans, not independently verified link detections.</p>
+          <h2 style={{ marginTop: 20 }}>Recent Threats</h2>
+          {total === 0 ? (
+            <p className="sd-note">No scans yet. Go to Analyze and run a Cloudflare AI check.</p>
+          ) : (
+            <div className="sd-threat-list">
+              {scans.slice(0, 5).map((scan) => (
+                <div className="sd-threat-row" key={scan.id}>
+                  <span className="sd-threat-name" style={{ minWidth: 0, overflowWrap: 'anywhere' }}>
+                    <span>{scan.level === 'High' ? '🔴' : scan.level === 'Moderate' ? '🟠' : '🟢'}</span>
+                    {' '}{scan.preview.slice(0, 60) || 'Analyzed message'}
+                  </span>
+                  <strong>{scan.score}/100</strong>
+                </div>
+              ))}
+            </div>
+          )}
         </section>
 
         <section className="sd-card">
-          <h2>Threat Overview</h2>
-          <p className="sd-note">Sample visualization — not historical data</p>
-          <div className="sd-chart">
-            <svg
-              viewBox="0 0 400 160"
-              preserveAspectRatio="none"
-              role="img"
-              aria-label="Illustrative phishing threat trend"
-            >
-              <defs>
-                <linearGradient id="sd-chart-fill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#b64dff" stopOpacity=".35" />
-                  <stop offset="100%" stopColor="#b64dff" stopOpacity="0" />
-                </linearGradient>
-              </defs>
-              {[30, 65, 100, 135].map((y) => (
-                <line
-                  key={y}
-                  x1="0"
-                  x2="400"
-                  y1={y}
-                  y2={y}
-                  stroke="#26385a"
-                  strokeDasharray="4 5"
-                />
-              ))}
-              <polygon
-                points={
-                  `0,160 ` +
-                  chartValues
-                    .map((value, index) =>
-                      `${(index / (chartValues.length - 1)) * 400},${155 - value * 1.35}`
-                    )
-                    .join(' ') +
-                  ` 400,160`
-                }
-                fill="url(#sd-chart-fill)"
-              />
-              <polyline
-                points={chartValues
-                  .map((value, index) =>
-                    `${(index / (chartValues.length - 1)) * 400},${155 - value * 1.35}`
-                  )
-                  .join(' ')}
-                fill="none"
-                stroke="#c665ff"
-                strokeWidth="3"
-                strokeLinejoin="round"
-                strokeLinecap="round"
-              />
-            </svg>
-          </div>
+          <h2>Risk Score Trend</h2>
+          <p className="sd-note">{total ? `Last ${recent.length} saved AI scan${recent.length === 1 ? '' : 's'}, oldest to newest · 0–100 risk scale` : 'The chart will appear after your first AI scan.'}</p>
+          {total > 0 ? (
+            <div className="sd-chart">
+              <svg viewBox="0 0 400 160" preserveAspectRatio="none" role="img" aria-label="Risk scores of recent completed AI scans">
+                <defs>
+                  <linearGradient id="sd-chart-fill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#b64dff" stopOpacity=".35" />
+                    <stop offset="100%" stopColor="#b64dff" stopOpacity="0" />
+                  </linearGradient>
+                </defs>
+                {[10, 45, 80, 115, 150].map((y) => (
+                  <line key={y} x1="0" x2="400" y1={y} y2={y} stroke="currentColor" opacity=".15" strokeDasharray="4 5" />
+                ))}
+                {recent.length > 1 && <polygon points={`0,160 ${points} 400,160`} fill="url(#sd-chart-fill)" />}
+                <polyline points={points} fill="none" stroke="#c665ff" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />
+                {recent.length === 1 && <circle cx="200" cy={150 - recent[0].score * 1.4} r="5" fill="#c665ff" />}
+              </svg>
+            </div>
+          ) : (
+            <p className="sd-note" style={{ padding: '48px 0', textAlign: 'center' }}>No historical data yet</p>
+          )}
+          {latest && <p className="sd-note">Latest scan: {latest.level} risk ({latest.score}/100) · {new Date(latest.createdAt).toLocaleString()}</p>}
         </section>
       </div>
 
       <p className="sd-disclaimer">
-        Demo dashboard: values are illustrative and do not represent a real
-        security scan. PhishHook cannot guarantee that a message is safe.
+        Dashboard shows up to 100 successful AI analyses saved in this browser only. Other users' scans are not included. AI risk scores are indicators, not guarantees of safety. Avoid entering passwords or verification codes.
       </p>
     </main>
   )
