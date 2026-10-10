@@ -39,8 +39,14 @@
   display: inline-flex;
   align-items: center;
   gap: 12px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
   font-weight: 800;
   letter-spacing: -0.04em;
+  cursor: pointer;
 }
 
 .brand-icon {
