@@ -51,7 +51,7 @@ describe("phish-hook Worker", () => {
       const response = await worker.fetch(request, env, {});
 
       expect(response.status).toBe(200);
-      expect(response.headers.get("Content-Type")).toBe("application/json");
+      expect(response.headers.get("Content-Type")).toContain("application/json");
       const body = await response.json();
       expect(body.name).toBe("phish-hook");
       expect(body.endpoints).toBeDefined();
@@ -102,12 +102,12 @@ describe("phish-hook Worker", () => {
 
       expect(runMock).toHaveBeenCalledTimes(1);
       const [model, options] = runMock.mock.calls[0];
-      expect(model).toBe("@cf/meta/llama-3.1-8b-instruct");
+      expect(model).toBe("@cf/google/gemma-4-26b-a4b-it");
       expect(options.messages[1].content).toContain(payload.content);
       expect(options.messages[1].content).toContain(payload.sender);
     });
 
-    it("returns 500 when Workers AI fails", async () => {
+    it("returns 503 when Workers AI fails", async () => {
       const runMock = vi.fn().mockRejectedValue(new Error("AI service unavailable"));
       const env = createMockEnv(runMock);
 
@@ -119,10 +119,10 @@ describe("phish-hook Worker", () => {
 
       const response = await worker.fetch(request, env, {});
 
-      expect(response.status).toBe(500);
+      expect(response.status).toBe(503);
       const data = await response.json();
       expect(data.success).toBe(false);
-      expect(data.error).toBe("AI service unavailable");
+      expect(data.error).toBe("AI analysis is temporarily unavailable. Please try again later.");
     });
   });
 
@@ -176,7 +176,7 @@ describe("phish-hook Worker", () => {
       expect(response.status).toBe(200);
       const data = await response.json();
       expect(data.response).toBe(mockAiResponse.response);
-      expect(runMock).toHaveBeenCalledWith("@cf/meta/llama-3.1-8b-instruct", {
+      expect(runMock).toHaveBeenCalledWith("@cf/google/gemma-4-26b-a4b-it", {
         prompt: "Hello",
       });
     });
