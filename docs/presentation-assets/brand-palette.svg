@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="360" viewBox="0 0 1200 360">
+  <rect width="1200" height="360" rx="28" fill="#F8F5ED"/>
+  <g font-family="Arial, Helvetica, sans-serif">
+    <text x="55" y="70" font-size="38" font-weight="700" fill="#071C30">Phishing Hook color palette</text>
+    <g font-size="22" font-weight="700">
+      <rect x="55" y="110" width="170" height="140" rx="18" fill="#071C30"/><text x="55" y="290" fill="#071C30">Deep Navy</text><text x="55" y="320" fill="#536272">#071C30</text>
+      <rect x="240" y="110" width="170" height="140" rx="18" fill="#0A2039"/><text x="240" y="290" fill="#071C30">Navy</text><text x="240" y="320" fill="#536272">#0A2039</text>
+      <rect x="425" y="110" width="170" height="140" rx="18" fill="#087A80"/><text x="425" y="290" fill="#071C30">Teal</text><text x="425" y="320" fill="#536272">#087A80</text>
+      <rect x="610" y="110" width="170" height="140" rx="18" fill="#55CED3"/><text x="610" y="290" fill="#071C30">Aqua</text><text x="610" y="320" fill="#536272">#55CED3</text>
+      <rect x="795" y="110" width="170" height="140" rx="18" fill="#9BE6E7"/><text x="795" y="290" fill="#071C30">Light Aqua</text><text x="795" y="320" fill="#536272">#9BE6E7</text>
+      <rect x="980" y="110" width="170" height="140" rx="18" fill="#F4B640"/><text x="980" y="290" fill="#071C30">Warning Gold</text><text x="980" y="320" fill="#536272">#F4B640</text>
+    </g>
+  </g>
+</svg>

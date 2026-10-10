@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="260" viewBox="0 0 900 260">
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M112 40v116c0 40-54 40-54 0 0-23 17-37 38-37" stroke="#55CED3" stroke-width="20"/>
+    <path d="M112 74c46-30 78 11 57 42-13 19-43 16-55-2" stroke="#55CED3" stroke-width="16"/>
+    <circle cx="139" cy="85" r="6" fill="#F8F5ED" stroke="none"/>
+    <path d="M61 195c32 37 94 37 127-2" stroke="#9BE6E7" stroke-width="10"/>
+  </g>
+  <text x="225" y="114" fill="#F8F5ED" font-family="Arial, Helvetica, sans-serif" font-size="78" font-weight="800">Phishing</text>
+  <text x="225" y="198" fill="#55CED3" font-family="Arial, Helvetica, sans-serif" font-size="78" font-weight="800">Hook</text>
+</svg>

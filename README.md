@@ -1,7 +1,7 @@
 # Phishing Hook
 
 <p align="center">
-  <img src="phish-hook/src/assets/phil-detective.png" alt="Phil, the Phishing Hook detective" width="260" />
+  <img src="phish-hook/src/assets/phil-the-phish.png" alt="Phil the Phish, the Phishing Hook antagonist" width="260" />
 </p>
 
 <p align="center">
@@ -13,6 +13,10 @@
 Phishing Hook is an AI-powered cybersecurity web application developed by Ensign Build 2026 Team RA to help people recognize phishing attempts and online scams. The project addresses a growing challenge: fraudulent messages that use urgency, fear, and impersonation to deceive users. Phishing Hook analyzes suspicious messages and identifies potential warning signs of manipulation. By integrating artificial intelligence, the application explains these risks in clear, understandable language instead of simply labeling messages as safe or dangerous. Users can paste a message directly or forward an email to receive a preliminary rating and a secure link to the full analyzer. Our goal is to make cybersecurity awareness more accessible to people without technical expertise. Phishing Hook combines AI integration, cybersecurity, and user-centered design in a practical web-based solution. The project demonstrates how technology can help people make more informed decisions about digital communication.
 
 **Live site:** [phishhook.lol](https://phishhook.lol/)
+
+## Meet Phil the Phish
+
+Phil the Phish is the project's antagonist: a predatory scammer who represents the person behind the bait. The training experience teaches users to recognize Phil's tactics before they become his next catch.
 
 ## Capabilities
 
@@ -42,7 +46,7 @@ See [Inbound email documentation](docs/inbound-email.md) for routing configurati
 
 ### Training and browser-local tools
 
-- Phil-themed landing page and phishing-awareness guidance.
+- Phil the Phish villain-themed landing page and phishing-awareness guidance.
 - Safety Guide with practical checks for urgent or suspicious requests.
 - Security Dashboard based on successful analyses saved in the current browser.
 - Browser-local scan history and replay.

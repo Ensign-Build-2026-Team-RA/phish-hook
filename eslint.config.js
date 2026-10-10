@@ -24,6 +24,8 @@ export default [
     ignores: [
       "node_modules/",
       ".wrangler/",
+      ".codex-ppt-build/",
+      "docs/",
       "dist/",
       "phish-hook/dist/",
       "hello.py",

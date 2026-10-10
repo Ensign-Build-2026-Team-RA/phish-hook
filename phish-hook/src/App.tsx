@@ -3,7 +3,7 @@ import PhilChatbot from './PhilChatbot'
 import { useEffect, useRef, useState } from 'react'
 import { MAX_MESSAGE_LENGTH, readAnalysisFragment } from '../../shared/analysis-link'
 import philBackground from './assets/phil-background-source.png'
-import philDetective from './assets/phil-detective.png'
+import philThePhish from './assets/phil-the-phish.png'
 import './App.css'
 
 const navItems = ['Home', 'Safety Guide', 'Dashboard', 'History', 'Analyze'] as const
@@ -532,26 +532,26 @@ function App() {
 
               <div className="phil-hero-inner">
                 <div className="phil-hero-copy">
-                  <div className="hero-kicker">Meet Phil, your online detective</div>
+                  <div className="hero-kicker">Meet Phil the Phish</div>
                   <h1 id="phil-hero-title">Don’t Bite<br />the Hook!</h1>
-                  <p>Learn to spot scams before they catch you with Phil, your trusty online detective.</p>
+                  <p>Phil is always hunting for his next catch. Learn the tricks this online predator uses before you bite the hook.</p>
 
                   <div className="phil-hero-actions">
                     <button type="button" className="hero-primary" onClick={() => setActivePage('Safety Guide')}>Start Training Now</button>
                     <button type="button" className="hero-secondary" onClick={() => setActivePage('Analyze')}>Spot a Phish</button>
                   </div>
 
-                  <aside className="phil-tip" aria-label="Daily tip from Phil">
-                    <div className="phil-tip-label">Daily tip from Phil</div>
-                    <img src={philDetective} alt="Phil the phishing detective" />
-                    <p>If an email sounds fishy, it probably is. Check the sender!</p>
+                  <aside className="phil-tip" aria-label="Phil's favorite phishing trick">
+                    <div className="phil-tip-label">Phil’s favorite trick</div>
+                    <img src={philThePhish} alt="Phil the Phish, a predatory phishing character" />
+                    <p>“Urgency is my favorite bait. Slow down and check the sender.”</p>
                   </aside>
                 </div>
 
                 <div className="phil-hero-art" aria-hidden="true">
                   <div className="fishbone fishbone-one">&gt;≡≡≡&lt;</div>
                   <div className="fishbone fishbone-two">&gt;≡≡&lt;</div>
-                  <img src={philDetective} alt="" />
+                  <img src={philThePhish} alt="" />
                 </div>
               </div>
             </section>

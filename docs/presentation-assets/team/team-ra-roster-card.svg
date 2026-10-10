@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="850" viewBox="0 0 1400 850">
+  <rect width="1400" height="850" rx="40" fill="#071C30"/>
+  <path d="M0 650C260 490 420 820 700 640s450-70 700 15v195H0z" fill="#087A80" opacity=".34"/>
+  <circle cx="1180" cy="120" r="220" fill="#087A80" opacity=".35"/>
+  <text x="95" y="115" fill="#55CED3" font-family="Arial, Helvetica, sans-serif" font-size="32" font-weight="700" letter-spacing="4">ENSIGN BUILD 2026</text>
+  <text x="95" y="205" fill="#F8F5ED" font-family="Arial, Helvetica, sans-serif" font-size="78" font-weight="800">Team RA</text>
+  <text x="95" y="260" fill="#9BE6E7" font-family="Arial, Helvetica, sans-serif" font-size="28">The team behind Phishing Hook</text>
+  <g font-family="Arial, Helvetica, sans-serif" font-size="37" font-weight="700">
+    <g transform="translate(95 340)"><circle cx="24" cy="-10" r="23" fill="#55CED3"/><text x="24" y="0" fill="#071C30" font-size="20" text-anchor="middle">AS</text><text x="70" y="2" fill="#F8F5ED">Aaron Smith</text></g>
+    <g transform="translate(95 430)"><circle cx="24" cy="-10" r="23" fill="#55CED3"/><text x="24" y="0" fill="#071C30" font-size="20" text-anchor="middle">AS</text><text x="70" y="2" fill="#F8F5ED">Ammon Shelley</text></g>
+    <g transform="translate(95 520)"><circle cx="24" cy="-10" r="23" fill="#55CED3"/><text x="24" y="0" fill="#071C30" font-size="20" text-anchor="middle">AM</text><text x="70" y="2" fill="#F8F5ED">Andre Martinez Vasquez</text></g>
+    <g transform="translate(720 340)"><circle cx="24" cy="-10" r="23" fill="#F4B640"/><text x="24" y="0" fill="#071C30" font-size="20" text-anchor="middle">AB</text><text x="70" y="2" fill="#F8F5ED">Anil Bolukbasioglu</text></g>
+    <g transform="translate(720 430)"><circle cx="24" cy="-10" r="23" fill="#F4B640"/><text x="24" y="0" fill="#071C30" font-size="20" text-anchor="middle">AR</text><text x="70" y="2" fill="#F8F5ED">Arthur Santos Rodrigues</text></g>
+    <g transform="translate(720 520)"><circle cx="24" cy="-10" r="23" fill="#F4B640"/><text x="24" y="0" fill="#071C30" font-size="20" text-anchor="middle">RR</text><text x="70" y="2" fill="#F8F5ED">Reyna Rodriguez Ruiz</text></g>
+  </g>
+  <text x="95" y="750" fill="#F8F5ED" font-family="Arial, Helvetica, sans-serif" font-size="34" font-weight="700">Don’t Bite the Hook!</text>
+  <text x="1305" y="750" fill="#55CED3" font-family="Arial, Helvetica, sans-serif" font-size="28" text-anchor="end">phishhook.lol</text>
+</svg>
