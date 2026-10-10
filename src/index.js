@@ -76,7 +76,10 @@ const analyzeMessage = async (env, { text, sender = 'Unknown', subject = 'No Sub
     chat_template_kwargs: { enable_thinking: false },
   })
 
-  return normalizeAnalysis(parseModelJson(result))
+  return {
+    analysis: normalizeAnalysis(parseModelJson(result)),
+    rawModelResponse: result,
+  }
 }
 
 export default {
@@ -174,12 +177,12 @@ export default {
       }
 
       try {
-        const analysis = await analyzeMessage(env, {
+        const { analysis, rawModelResponse } = await analyzeMessage(env, {
           text,
           sender: normalizeText(payload?.sender).slice(0, 200) || 'Unknown',
           subject: normalizeText(payload?.subject).slice(0, 200) || 'No Subject',
         })
-        return jsonResponse({ success: true, analysis, model: AI_MODEL })
+        return jsonResponse({ success: true, analysis, model: AI_MODEL, rawModelResponse })
       } catch (error) {
         console.error('Workers AI message analysis failed:', error?.name || 'UnknownError')
         return jsonResponse({ error: 'AI analysis is temporarily unavailable. Please try again later.' }, 503)

@@ -111,6 +111,8 @@ function App() {
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [progressValue, setProgressValue] = useState(0)
   const [analysisError, setAnalysisError] = useState('')
+  const [rawAiResponse, setRawAiResponse] = useState<unknown>(null)
+  const [aiModel, setAiModel] = useState('')
 
   const hasInput = draftInput.trim().length > 0
   const currentInputSignature = draftInput.trim()
@@ -180,6 +182,8 @@ function App() {
     setProgressValue(0)
     setIsAnalyzing(true)
     setAnalysisError('')
+    setRawAiResponse(null)
+    setAiModel('')
 
     try {
       const response = await fetch('/api/analyze', {
@@ -190,7 +194,12 @@ function App() {
         body: JSON.stringify({ text: textToAnalyze }),
       })
 
-      const payload = await response.json() as { analysis?: Analysis; error?: string }
+      const payload = await response.json() as {
+        analysis?: Analysis
+        error?: string
+        model?: string
+        rawModelResponse?: unknown
+      }
       if (!response.ok) throw new Error(payload.error || 'AI analysis request failed.')
       if (!payload.analysis) throw new Error('The AI analysis service returned an unexpected response.')
 
@@ -198,6 +207,8 @@ function App() {
       setLastAnalyzedInput(nextInputSignature)
       setProgressValue(100)
       setAnalysis(nextAnalysis)
+      setRawAiResponse(payload.rawModelResponse ?? payload)
+      setAiModel(payload.model ?? 'Unknown model')
 
       if (shouldAddToHistory) {
         const inputPreview = textToAnalyze.trim()
@@ -367,6 +378,16 @@ function App() {
                 ))}
               </div>
             </section>
+
+            {rawAiResponse !== null && (
+              <details className="ai-debug-panel" open>
+                <summary>Full AI response · {aiModel}</summary>
+                <h3>Raw Cloudflare Workers AI result</h3>
+                <pre>{JSON.stringify(rawAiResponse, null, 2)}</pre>
+                <h3>Normalized assessment shown above</h3>
+                <pre>{JSON.stringify(analysis, null, 2)}</pre>
+              </details>
+            )}
           </div>
         )
 
