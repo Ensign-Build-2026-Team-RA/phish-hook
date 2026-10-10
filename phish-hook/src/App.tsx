@@ -5,34 +5,19 @@ const navItems = ['Home', 'Analyze', 'History', 'Safety Guide'] as const
 
 type NavItem = (typeof navItems)[number]
 
-type Assessment = { score: number; level: 'Low' | 'Moderate' | 'High'; flags: string[]; advice: string }
+type Assessment = {
+  score: number
+  level: 'Low' | 'Moderate' | 'High'
+  summary: string
+  flags: string[]
+  advice: string
+}
 
 const examples = [
   { name: 'Bank alert', text: 'URGENT: Your bank account will be suspended. Verify your password now at https://bank-verify.example/login' },
   { name: 'Delivery notice', text: 'Your package could not be delivered. Pay a redelivery fee at https://delivery-check.example' },
   { name: 'Normal message', text: 'Hey, are we still meeting at the library tomorrow at 3 PM?' },
 ]
-
-function assessMessage(text: string): Assessment {
-  const checks = [
-    { match: /urgent|immediately|within 24 hours|act now|last chance|suspended|closed/i, flag: 'Pressure or urgency', points: 25 },
-    { match: /https?:\/\/|www\./i, flag: 'Contains a link — verify the destination independently', points: 15 },
-    { match: /password|login|credentials|verification code|one.time passcode|otp/i, flag: 'Requests sensitive account information', points: 35 },
-    { match: /pay|payment|fee|transfer|gift card|bank account/i, flag: 'Financial request or payment language', points: 20 },
-    { match: /click here|verify your|confirm your|update your account/i, flag: 'Asks you to follow an account-verification instruction', points: 20 },
-  ]
-  const matched = checks.filter(check => check.match.test(text))
-  const score = Math.min(100, matched.reduce((sum, check) => sum + check.points, 0))
-  const level = score >= 60 ? 'High' : score >= 25 ? 'Moderate' : 'Low'
-  return {
-    score, level,
-    flags: matched.map(check => check.flag),
-    advice: score >= 25
-      ? 'Do not follow links or share information. Contact the organization using an official website, app, or known phone number.'
-      : 'No strong indicators matched these basic rules. Still verify unexpected requests; a low score does not guarantee safety.',
-  }
-}
-
 const historyRows = [
   { title: 'Bank impersonation attempt', state: 'High risk · 2 hours ago' },
   { title: 'Fake customer support message', state: 'Moderate risk · yesterday' },
@@ -81,17 +66,38 @@ function App() {
   const [result, setResult] = useState<Assessment | null>(null)
   const [submitted, setSubmitted] = useState('')
   const [scanning, setScanning] = useState(false)
+  const [error, setError] = useState('')
 
-  const analyze = () => {
-    if (!message.trim() || scanning) return
+  const analyze = async () => {
+    const text = message.trim()
+    if (!text || scanning) return
+
     setScanning(true)
     setResult(null)
-    // A short animation for the demo. The analysis itself runs locally in the browser.
-    window.setTimeout(() => {
-      setSubmitted(message.trim())
-      setResult(assessMessage(message.trim()))
+    setError('')
+
+    try {
+      const response = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      })
+      const payload = await response.json() as { analysis?: Assessment; error?: string }
+
+      if (!response.ok) {
+        throw new Error(payload.error || 'AI analysis could not be completed.')
+      }
+      if (!payload.analysis) {
+        throw new Error('The analysis service returned an unexpected response.')
+      }
+
+      setSubmitted(text)
+      setResult(payload.analysis)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'AI analysis could not be completed. Please try again.')
+    } finally {
       setScanning(false)
-    }, 650)
+    }
   }
 
   const renderPage = () => {
@@ -147,7 +153,7 @@ function App() {
               <article className="feature-card">
                 <div className="feature-icon">🧠</div>
                 <h3>Explainable indicators</h3>
-                <p>Rule-based demo assessment highlights suspicious patterns and manipulative language.</p>
+                <p>Cloudflare Workers AI reviews messages for suspicious links, impersonation, and social-engineering tactics.</p>
               </article>
               <article className="feature-card">
                 <div className="feature-icon">🛡️</div>
@@ -170,14 +176,14 @@ function App() {
                  className="scanner-input"
                  value={message}
                  maxLength={5000}
-                 onChange={event => { setMessage(event.target.value); setResult(null) }}
+                 onChange={event => { setMessage(event.target.value); setResult(null); setError('') }}
                  placeholder="Paste a message here. Avoid including passwords or other sensitive information."
                  rows={6}
                />
                <div className="sample-row">
                  {examples.map(example => (
                    <button type="button" className="secondary-btn" key={example.name}
-                     onClick={() => { setMessage(example.text); setResult(null) }}>
+                     onClick={() => { setMessage(example.text); setResult(null); setError('') }}>
                      {example.name}
                    </button>
                  ))}
@@ -186,22 +192,23 @@ function App() {
                  disabled={!message.trim() || scanning} onClick={analyze}>
                  {scanning ? 'Scanning message…' : '🔍 Scan for Threats'}
                </button>
-               <p className="scanner-note">Demo mode: local, rule-based indicators — not AI, not a guarantee of safety. Message text is not sent to a server by this scanner.</p>
+               {error && <p className="scanner-note scanner-error" role="alert">{error}</p>}
+               <p className="scanner-note">Analysis is sent to Cloudflare Workers AI. Avoid including passwords or verification codes. AI results can be wrong and are not a guarantee of safety.</p>
              </section>
              {result && (
                <section className="report-card scanner-results" aria-live="polite">
                  <div className="report-card-inner">
                    <div className="score-wrap">
                      <div className="score-ring" style={{ background: `conic-gradient(${result.level === 'High' ? '#ff7a7a' : result.level === 'Moderate' ? '#ffca4d' : '#6ee7a7'} 0 ${result.score}%, rgba(255,255,255,.08) ${result.score}% 100%)` }}
-                       aria-label={`Demo indicator score ${result.score} out of 100`}>
+                       aria-label={`AI risk indicator score ${result.score} out of 100`}>
                        <span>{result.score}</span>
                      </div>
                    </div>
                    <div className="report-content">
                      <div className="risk-tag">{result.level} indicators</div>
-                     <div className="risk-label">Illustrative heuristic score / 100</div>
+                     <div className="risk-label">AI risk indicator score / 100</div>
                      <h2>Safety Report</h2>
-                     <p>This score measures matched warning signs; it is not a probability of fraud.</p>
+                     <p>{result.summary} This score is a risk indicator, not a probability of fraud.</p>
                      <div className="preview-label">Submitted message</div>
                      <div className="preview-box"><p className="submitted-message">{submitted}</p></div>
                    </div>

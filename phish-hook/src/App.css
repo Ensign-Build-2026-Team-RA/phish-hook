@@ -814,6 +814,7 @@
 .scan-button { width: 100%; }
 .scan-button:disabled { opacity: 0.5; cursor: not-allowed; }
 .scanner-note { color: #a4bacf; font-size: 0.84rem; line-height: 1.6; margin: 0; }
+.scanner-error { color: #ff9a9a; }
 .scanner-results { margin-top: 24px; }
 .submitted-message { white-space: pre-wrap; overflow-wrap: anywhere; }
 .scanner-results .flag-panel { margin-top: 22px; }
