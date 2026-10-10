@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import philDetective from './assets/phil-detective.png'
 import './PhilChatbot.css'
 
 type Message = { role: 'user' | 'assistant'; content: string }
@@ -39,7 +40,7 @@ export default function PhilChatbot() {
     <div className="phil-widget">
       {open && <section className="phil-panel" aria-label="Chat with Detective Phil">
         <header className="phil-header">
-          <img src="/phil-detective.png" alt="Detective Phil" />
+          <img src={philDetective} alt="Detective Phil" />
           <div><strong>Ask Detective Phil</strong><span>AI phishing-awareness assistant</span></div>
           <button type="button" onClick={() => setOpen(false)} aria-label="Close Phil chat">×</button>
         </header>
@@ -56,7 +57,7 @@ export default function PhilChatbot() {
         <p className="phil-privacy">AI can make mistakes. Don't share passwords or verification codes. Chat stays in this page until you reload.</p>
       </section>}
       <button className="phil-launcher" type="button" onClick={() => setOpen((value) => !value)} aria-label={open ? 'Close Detective Phil' : 'Chat with Detective Phil'} aria-expanded={open}>
-        <img src="/phil-detective.png" alt="" /><span>{open ? 'Close Phil' : 'Ask Phil'}</span>
+        <img src={philDetective} alt="" /><span>{open ? 'Close Phil' : 'Ask Phil'}</span>
       </button>
     </div>
   )
