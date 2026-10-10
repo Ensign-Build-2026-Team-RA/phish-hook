@@ -74,12 +74,85 @@ export default {
       return new Response(null, { headers: corsHeaders })
     }
 
+    if (url.pathname === '/' && request.method === 'GET') {
+      return new Response(JSON.stringify({
+        name: 'phish-hook',
+        description: 'Phishing analysis API',
+        endpoints: {
+          'POST /api/analyze': 'Analyze message text or image for phishing indicators',
+          'POST /analyze': 'Analyze email or message content with Workers AI',
+          'POST /chat': 'Complete a general prompt with Workers AI',
+        },
+      }, null, 2), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    if (url.pathname === '/analyze' && request.method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}))
+        const content = normalizeText(body.content ?? body.message ?? body.text)
+
+        if (!content) {
+          return new Response(JSON.stringify({ error: "Missing required 'content' field in JSON body." }), {
+            status: 400,
+            headers: corsHeaders,
+          })
+        }
+
+        const sender = normalizeText(body.sender) || 'Unknown'
+        const subject = normalizeText(body.subject) || 'No Subject'
+        const aiResponse = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
+          messages: [
+            {
+              role: 'system',
+              content: 'Analyze messages for phishing indicators. Give a risk level, estimated probability, red flags, and recommendations.',
+            },
+            {
+              role: 'user',
+              content: `Sender: ${sender}\nSubject: ${subject}\n\nBody/Content:\n${content}`,
+            },
+          ],
+        })
+
+        return new Response(JSON.stringify({ success: true, analysis: aiResponse.response }), {
+          status: 200,
+          headers: corsHeaders,
+        })
+      } catch (error) {
+        return new Response(JSON.stringify({ success: false, error: error.message }), {
+          status: 500,
+          headers: corsHeaders,
+        })
+      }
+    }
+
+    if (url.pathname === '/chat' && request.method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}))
+        const prompt = normalizeText(body.prompt ?? body.message)
+
+        if (!prompt) {
+          return new Response(JSON.stringify({ error: "Missing 'prompt' in request body." }), {
+            status: 400,
+            headers: corsHeaders,
+          })
+        }
+
+        const result = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', { prompt })
+        return new Response(JSON.stringify(result), { status: 200, headers: corsHeaders })
+      } catch (error) {
+        return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: corsHeaders })
+      }
+    }
+
     if (url.pathname === '/api/analyze') {
       if (request.method !== 'POST') {
         return new Response('Method not allowed', { status: 405, headers: corsHeaders })
       }
 
-      let payload = {}
+      let payload
 
       try {
         payload = await request.json()
@@ -123,7 +196,7 @@ export default {
           })
         }
 
-        const response = await fetch('https://api.openai.com/v1/responses', {
+        const response = await globalThis.fetch('https://api.openai.com/v1/responses', {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${apiKey}`,
@@ -181,7 +254,9 @@ export default {
       }
     }
 
-    return new Response('Not found', { status: 404, headers: corsHeaders })
+    return new Response(JSON.stringify({ error: 'Not Found', message: `No route for ${request.method} ${url.pathname}` }), {
+      status: 404,
+      headers: corsHeaders,
+    })
   },
 }
-
