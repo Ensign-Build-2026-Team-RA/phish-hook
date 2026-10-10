@@ -40,6 +40,17 @@ describe("phish-hook Worker", () => {
       expect(await response.text()).toContain('id="root"');
       expect(env.ASSETS.fetch).toHaveBeenCalledWith(request);
     });
+
+    it("falls back to a static response when assets binding is missing", async () => {
+      const request = new Request("http://localhost/", {
+        method: "GET",
+      });
+      const response = await worker.fetch(request, {}, {});
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get("Content-Type")).toContain("text/html");
+      expect(await response.text()).toContain("Phishing Hook");
+    });
   });
 
   describe("GET /api/docs", () => {
@@ -142,6 +153,20 @@ describe("phish-hook Worker", () => {
       expect(data.risk).toBe("High");
       expect(data.flags.some((flag) => flag.includes("OWASP A07") || flag.includes("OWASP A10") || flag.includes("OWASP A04"))).toBe(true);
       expect(data.summary).toContain("OWASP Top 10");
+    });
+
+    it("returns a graceful fallback when the AI binding is not configured", async () => {
+      const request = new Request("http://localhost/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: "Urgent account message" }),
+      });
+      const response = await worker.fetch(request, {}, {});
+
+      expect(response.status).toBe(200);
+      const data = await response.json();
+      expect(data.score).toBeGreaterThan(0);
+      expect(data.risk).toBeTruthy();
     });
   });
 

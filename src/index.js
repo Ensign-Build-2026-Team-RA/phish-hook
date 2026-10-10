@@ -139,15 +139,24 @@ const extractOutputText = (parsed) => {
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env = {}) {
     const url = new URL(request.url)
+    const hasAssetBinding = !!(env.ASSETS && typeof env.ASSETS.fetch === 'function')
+    const hasAiBinding = !!(env.AI && typeof env.AI.run === 'function')
 
     if (request.method === 'OPTIONS') {
       return new Response(null, { headers: corsHeaders })
     }
 
     if (url.pathname === '/' && request.method === 'GET') {
-      return env.ASSETS.fetch(request)
+      if (hasAssetBinding) {
+        return env.ASSETS.fetch(request)
+      }
+
+      return new Response(`<!doctype html><html lang="en"><head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>Phishing Hook</title></head><body><div id="root"><h1>Phishing Hook</h1><p>Cloudflare assets are not configured for this environment.</p></div></body></html>`, {
+        status: 200,
+        headers: { 'Content-Type': 'text/html;charset=UTF-8' },
+      })
     }
 
     if (url.pathname === '/api/docs' && request.method === 'GET') {
@@ -173,6 +182,14 @@ export default {
         if (!content) {
           return new Response(JSON.stringify({ error: "Missing required 'content' field in JSON body." }), {
             status: 400,
+            headers: corsHeaders,
+          })
+        }
+
+        if (!hasAiBinding) {
+          const fallback = fallbackHeuristicAnalysis(content, false)
+          return new Response(JSON.stringify({ success: true, analysis: fallback }), {
+            status: 200,
             headers: corsHeaders,
           })
         }
@@ -216,6 +233,13 @@ export default {
           })
         }
 
+        if (!hasAiBinding) {
+          return new Response(JSON.stringify({ error: 'AI binding is not configured for this deployment.' }), {
+            status: 503,
+            headers: corsHeaders,
+          })
+        }
+
         const result = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', { prompt })
         return new Response(JSON.stringify(result), { status: 200, headers: corsHeaders })
       } catch (error) {
@@ -241,6 +265,13 @@ export default {
       const apiKey = env.OPENAI_API_KEY
 
       if (!apiKey) {
+        return new Response(JSON.stringify(fallbackHeuristicAnalysis(text, Boolean(image))), {
+          status: 200,
+          headers: corsHeaders,
+        })
+      }
+
+      if (!hasAiBinding) {
         return new Response(JSON.stringify(fallbackHeuristicAnalysis(text, Boolean(image))), {
           status: 200,
           headers: corsHeaders,

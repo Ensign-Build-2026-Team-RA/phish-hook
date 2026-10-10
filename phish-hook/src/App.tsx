@@ -12,7 +12,9 @@ type HistoryEntry = {
   content: string
 }
 
-const threatExampleText = 'Example: Urgent: your bank account has been temporarily suspended. Click the link to restore access immediately.'
+const threatExampleText = 'Example: Hi! Your account is locked. Click here now to fix it and enter your password and code before it closes.'
+
+const owaspTop10Sample = `Hi! Your account is locked. We need you to click this link right now to fix it. If you do not act fast, your account will be closed. Please enter your password and the one-time code we send you. This is the real security team and it is very important.`
 
 const buildAnalysis = (content: string, imagePresent: boolean) => {
   const normalized = content.toLowerCase()
@@ -101,6 +103,10 @@ const buildAnalysis = (content: string, imagePresent: boolean) => {
     ? matchedChecks.slice(0, 4).map((check) => `OWASP ${check.id}: ${check.label}`)
     : ['OWASP A09: Security logging and monitoring gaps not detected']
 
+  const explanation = matchedChecks.length
+    ? `This is a sneaky trap. It says to hurry, it scares you, and it asks for a password or code. That is a big red flag. Real companies do not usually ask for secret information in a scary message like this.`
+    : 'This does not look super scary yet, but if it asks for a password, code, or quick action, it is still smart to double-check using a trusted app or website.'
+
   return {
     score,
     level: risk,
@@ -109,6 +115,7 @@ const buildAnalysis = (content: string, imagePresent: boolean) => {
         ? `OWASP Top 10 review found ${matchedChecks.length} high-risk web application patterns consistent with phishing manipulation and account abuse.`
         : 'OWASP Top 10 review did not detect clear phishing patterns in the provided content.',
     flags,
+    explanation,
     advice: matchedChecks.length
       ? 'This message appears to match multiple OWASP phishing patterns. Verify the sender via a trusted channel before acting on any request.'
       : 'No obvious malicious pattern was detected, but the request still deserves caution if it asks for credentials or urgent action.',
@@ -120,6 +127,7 @@ type Analysis = {
   level: 'Low' | 'Moderate' | 'High'
   summary: string
   flags: string[]
+  explanation: string
   advice: string
 }
 
@@ -129,6 +137,7 @@ const emptyAnalysis: Analysis = {
   level: 'Low',
   summary: 'Paste a message to start the phishing assessment.',
   flags: [],
+  explanation: 'Waiting for content to review. The explanation will appear here once the scan completes.',
   advice: '',
 }
 
@@ -213,13 +222,10 @@ function App() {
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [progressValue, setProgressValue] = useState(0)
   const [analysisError, setAnalysisError] = useState('')
-  const [rawAiResponse, setRawAiResponse] = useState<unknown>(null)
-  const [aiModel, setAiModel] = useState('')
 
   const hasInput = draftInput.trim().length > 0
   const currentInputSignature = draftInput.trim()
   const isRunDisabled = isAnalyzing || !hasInput || currentInputSignature === lastAnalyzedInput
-  const isAnalyzeAgainDisabled = isAnalyzing || !hasInput
   const isPendingScore = !isAnalyzing && progressValue === 0
   const scoreRingProgress = Math.min(100, Math.max(0, progressValue))
   const scoreRingStyle = {
@@ -230,6 +236,7 @@ function App() {
   const displaySummary = isPendingScore
     ? 'Paste a message to start the phishing assessment.'
     : analysis.summary
+  const totalScoreText = `${displayScore}/100`
   useEffect(() => {
     if (typeof window !== 'undefined') {
       window.localStorage.setItem('phish-hook-page', activePage)
@@ -290,8 +297,6 @@ function App() {
     setProgressValue(0)
     setIsAnalyzing(true)
     setAnalysisError('')
-    setRawAiResponse(null)
-    setAiModel('')
 
     try {
       const response = await fetch('/api/analyze', {
@@ -302,21 +307,49 @@ function App() {
         body: JSON.stringify({ text: textToAnalyze }),
       })
 
-      const payload = await response.json() as {
-        analysis?: Analysis
-        error?: string
-        model?: string
-        rawModelResponse?: unknown
-      }
-      if (!response.ok) throw new Error(payload.error || 'AI analysis request failed.')
-      if (!payload.analysis) throw new Error('The AI analysis service returned an unexpected response.')
+      const responseText = await response.text()
+      let payload: Record<string, unknown> = {}
 
-      const nextAnalysis = payload.analysis
+      if (responseText) {
+        try {
+          payload = JSON.parse(responseText) as Record<string, unknown>
+        } catch {
+          payload = { error: 'The analysis service returned an invalid JSON response.' }
+        }
+      }
+
+      if (!response.ok) {
+        throw new Error(typeof payload.error === 'string' ? payload.error : `AI analysis request failed (${response.status}).`)
+      }
+
+      const directAnalysis = payload.analysis ?? payload
+      if (!directAnalysis || typeof directAnalysis !== 'object') {
+        throw new Error('The AI analysis service returned an unexpected response.')
+      }
+
+      const score = Number((directAnalysis as Record<string, unknown>).score)
+      const nextAnalysis: Analysis = {
+        score: Number.isFinite(score) ? score : 0,
+        level: typeof (directAnalysis as Record<string, unknown>).risk === 'string'
+          ? (directAnalysis as Record<string, unknown>).risk as Analysis['level']
+          : 'Low',
+        summary: typeof (directAnalysis as Record<string, unknown>).summary === 'string'
+          ? (directAnalysis as Record<string, unknown>).summary as string
+          : 'The analysis service returned a result without a summary.',
+        flags: Array.isArray((directAnalysis as Record<string, unknown>).flags)
+          ? ((directAnalysis as Record<string, unknown>).flags as unknown[]).filter((flag): flag is string => typeof flag === 'string')
+          : [],
+        explanation: typeof (directAnalysis as Record<string, unknown>).explanation === 'string'
+          ? (directAnalysis as Record<string, unknown>).explanation as string
+          : 'This message feels scary and urgent, and it asks for a password or code. That is a classic trick used by fake messages.',
+        advice: typeof (directAnalysis as Record<string, unknown>).advice === 'string'
+          ? (directAnalysis as Record<string, unknown>).advice as string
+          : 'Verify unexpected requests through a trusted channel before responding or following links.',
+      }
+
       setLastAnalyzedInput(nextInputSignature)
       setProgressValue(100)
       setAnalysis(nextAnalysis)
-      setRawAiResponse(payload.rawModelResponse ?? payload)
-      setAiModel(payload.model ?? 'Unknown model')
 
       if (shouldAddToHistory) {
         const inputPreview = textToAnalyze.trim()
@@ -329,6 +362,14 @@ function App() {
       }
     } catch (error) {
       setAnalysisError(error instanceof Error ? error.message : 'AI analysis failed. Please try again.')
+      setAnalysis((current) => current.score > 0 ? current : {
+        score: 0,
+        level: 'Low',
+        summary: 'The analysis service returned no usable data. Please try again.',
+        flags: ['Service response empty'],
+        explanation: 'The message could not be scored because the service returned incomplete data, so the result is currently inconclusive and should be rechecked.',
+        advice: 'Try again in a moment or paste a shorter message to re-run the check.',
+      })
     } finally {
       setIsAnalyzing(false)
     }
@@ -336,6 +377,11 @@ function App() {
 
   const handleAnalyze = () => {
     void runAnalysis(draftInput, true)
+  }
+
+  const loadOwaspTop10Test = () => {
+    setDraftInput(owaspTop10Sample)
+    setLastAnalyzedInput('')
   }
 
   const handleHistoryReplay = (row: HistoryEntry) => {
@@ -417,12 +463,6 @@ function App() {
           <div className="page-shell">
             <div className="headline-row">
               <div className="eyebrow">Codex AI</div>
-              <div className="headline-actions">
-                <button type="button" className="secondary-btn">Share</button>
-                <button type="button" className="primary-btn" onClick={handleAnalyze} disabled={isAnalyzeAgainDisabled}>
-                  {isAnalyzing ? 'Analyzing...' : 'Analyze Again'}
-                </button>
-              </div>
             </div>
 
             <h1 className="report-title">Safety Report</h1>
@@ -445,6 +485,7 @@ function App() {
               />
 
               <div className="analysis-actions">
+                <button type="button" className="secondary-btn" onClick={loadOwaspTop10Test}>Load OWASP Top 10 Test</button>
                 <button type="button" className="primary-btn" onClick={handleAnalyze} disabled={isRunDisabled}>
                   {isAnalyzing ? 'Analyzing...' : 'Analyze with Cloudflare AI'}
                 </button>
@@ -474,10 +515,20 @@ function App() {
                 </div>
 
                 <div className="report-content">
+                  <div className="score-total-badge">
+                    <span>Total score</span>
+                    <strong>{totalScoreText}</strong>
+                  </div>
                   <div className="risk-tag">{displayRisk}</div>
                   <div className="risk-label">OWASP Top 10 phishing review</div>
                   <h2>Risk Assessment</h2>
+                  <div className="preview-label">Summary</div>
                   <p>{displaySummary}</p>
+
+                  <div className="why-risk-panel">
+                    <div className="preview-label">Why this is risky</div>
+                    <p>{analysis.explanation}</p>
+                  </div>
 
                   <div className="preview-label">Analyzed content preview</div>
                   <div className="preview-box">
@@ -499,15 +550,6 @@ function App() {
               </div>
             </section>
 
-            {rawAiResponse !== null && (
-              <details className="ai-debug-panel" open>
-                <summary>Full AI response · {aiModel}</summary>
-                <h3>Raw Cloudflare Workers AI result</h3>
-                <pre>{JSON.stringify(rawAiResponse, null, 2)}</pre>
-                <h3>Normalized assessment shown above</h3>
-                <pre>{JSON.stringify(analysis, null, 2)}</pre>
-              </details>
-            )}
           </div>
         )
 
