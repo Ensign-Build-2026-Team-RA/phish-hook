@@ -14,112 +14,6 @@ type HistoryEntry = {
 
 const threatExampleText = 'Example: Urgent: your bank account has been temporarily suspended. Click the link to restore access immediately.'
 
-const buildAnalysis = (content: string, imagePresent: boolean) => {
-  const normalized = content.toLowerCase()
-  const owaspChecks = [
-    {
-      id: 'A01',
-      label: 'Broken Access Control',
-      keywords: ['recover access', 'verify account', 'restore access', 'account suspended', 'locked account', 'security alert'],
-      icon: '🚧',
-    },
-    {
-      id: 'A02',
-      label: 'Cryptographic Failures',
-      keywords: ['password', 'otp', 'one-time code', 'verification code', 'secret code', 'mfa', 'sms code'],
-      icon: '🔐',
-    },
-    {
-      id: 'A03',
-      label: 'Injection',
-      keywords: ['click here', 'open this link', 'follow the link', 'redirect', 'download now', 'submit form'],
-      icon: '🧪',
-    },
-    {
-      id: 'A04',
-      label: 'Insecure Design',
-      keywords: ['urgent', 'immediately', 'act now', 'today only', 'within 24 hours', 'final notice'],
-      icon: '🧠',
-    },
-    {
-      id: 'A05',
-      label: 'Security Misconfiguration',
-      keywords: ['official', 'bank', 'paypal', 'microsoft', 'apple', 'security team', 'customer support'],
-      icon: '⚙️',
-    },
-    {
-      id: 'A06',
-      label: 'Vulnerable Components',
-      keywords: ['legacy portal', 'outdated app', 'unsupported browser', 'expired certificate', 'old version'],
-      icon: '🧰',
-    },
-    {
-      id: 'A07',
-      label: 'Authentication Failures',
-      keywords: ['verify your identity', 'confirm login', 'reset your password', 'sign in to continue', 'account recovery'],
-      icon: '🪪',
-    },
-    {
-      id: 'A08',
-      label: 'Integrity Failures',
-      keywords: ['invoice', 'payment required', 'wire transfer', 'payment update', 'tax refund', 'important document'],
-      icon: '📦',
-    },
-    {
-      id: 'A09',
-      label: 'Logging & Monitoring',
-      keywords: ['ignore this warning', 'do not share', 'keep this private', 'no need to contact support', 'confidential alert'],
-      icon: '📊',
-    },
-    {
-      id: 'A10',
-      label: 'Unsafe URL / SSRF Risk',
-      keywords: ['http://', 'https://', 'click the link', 'visit the portal', 'open the form', 'secure portal'],
-      icon: '🔗',
-    },
-  ]
-
-  const matchedChecks = owaspChecks
-    .map((check) => ({
-      ...check,
-      value: Math.min(99, 22 + check.keywords.filter((term) => normalized.includes(term)).length * 17),
-      matches: check.keywords.filter((term) => normalized.includes(term)),
-    }))
-    .filter((check) => check.matches.length > 0)
-
-  const averageMatchScore = matchedChecks.reduce((total, check) => total + check.value, 0) / Math.max(matchedChecks.length, 1)
-  const score = Math.min(
-    99,
-    Math.max(
-      12,
-      Math.round(30 + averageMatchScore * 0.75 + (imagePresent ? 8 : 0)),
-    ),
-  )
-
-  const risk = matchedChecks.length >= 3 || score >= 68 ? 'High' : score >= 45 ? 'Moderate' : 'Low'
-  const flags = matchedChecks.length
-    ? matchedChecks.slice(0, 4).map((check) => `OWASP ${check.id}: ${check.label}`)
-    : ['OWASP A09: Security logging and monitoring gaps not detected']
-
-  return {
-    score,
-    risk,
-    summary:
-      matchedChecks.length > 0
-        ? `OWASP Top 10 review found ${matchedChecks.length} high-risk web application patterns consistent with phishing manipulation and account abuse.`
-        : 'OWASP Top 10 review did not detect clear phishing patterns in the provided content.',
-    flags,
-    signals: matchedChecks.length
-      ? matchedChecks.slice(0, 4).map((check) => ({
-          label: `${check.id} ${check.label}`,
-          value: check.value,
-          icon: check.icon,
-        }))
-      : [
-          { label: 'A09 Logging & Monitoring', value: 0, icon: '📊' },
-          { label: 'A10 Unsafe URLs', value: 0, icon: '🔗' },
-        ],
-  }
 type Analysis = {
   score: number
   level: 'Low' | 'Moderate' | 'High'
@@ -423,7 +317,7 @@ function App() {
         return (
           <div className="page-shell">
             <div className="headline-row">
-              <div className="eyebrow">Codex AI</div>
+              <div className="eyebrow">Cloudflare Workers AI</div>
               <div className="headline-actions">
                 <button type="button" className="secondary-btn">Share</button>
                 <button type="button" className="primary-btn" onClick={handleAnalyze} disabled={isAnalyzeAgainDisabled}>
@@ -482,7 +376,7 @@ function App() {
 
                 <div className="report-content">
                   <div className="risk-tag">{displayRisk}</div>
-                  <div className="risk-label">OWASP Top 10 phishing review</div>
+                  <div className="risk-label">Phishing and social-engineering review</div>
                   <h2>Risk Assessment</h2>
                   <p>{displaySummary}</p>
 
