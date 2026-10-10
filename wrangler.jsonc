@@ -3,6 +3,12 @@
   "name": "phish-hook",
   "main": "src/index.js",
   "compatibility_date": "2026-10-09",
+  "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    "SITE_URL": "https://phishhook.lol/",
+    "RECEIVING_DOMAIN": "phishhook.lol",
+    "REPLY_EMAIL": "report@phishhook.lol"
+  },
   "assets": {
     "directory": "./phish-hook/dist",
     "binding": "ASSETS",
