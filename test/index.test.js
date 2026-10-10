@@ -127,21 +127,46 @@ describe("phish-hook Worker", () => {
   });
 
   describe("POST /api/analyze", () => {
-    it("uses OWASP Top 10 categories in fallback analysis when no API key is configured", async () => {
+    it("parses Gemma chat completions and preserves the full model response", async () => {
+      const assessment = {
+        score: 95,
+        summary: "The message threatens account loss to pressure the recipient into sharing credentials.",
+        flags: ["Urgency", "Credential theft", "Impersonation"],
+        advice: "Visit the official account website directly instead of following the link.",
+      };
+      const rawModelResponse = {
+        choices: [{ message: { content: `\`\`\`json\n${JSON.stringify(assessment)}\n\`\`\`` } }],
+        usage: { neurons: 6 },
+      };
+      const runMock = vi.fn().mockResolvedValue(rawModelResponse);
       const request = new Request("http://localhost/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: "Urgent: verify your identity and reset your password immediately by clicking the secure portal link." }),
       });
-      const env = createMockEnv();
+      const env = createMockEnv(runMock);
       const response = await worker.fetch(request, env, {});
 
       expect(response.status).toBe(200);
       const data = await response.json();
-      expect(data.score).toBeGreaterThan(60);
-      expect(data.risk).toBe("High");
-      expect(data.flags.some((flag) => flag.includes("OWASP A07") || flag.includes("OWASP A10") || flag.includes("OWASP A04"))).toBe(true);
-      expect(data.summary).toContain("OWASP Top 10");
+      expect(data.success).toBe(true);
+      expect(data.analysis).toEqual({ ...assessment, level: "High" });
+      expect(data.rawModelResponse).toEqual(rawModelResponse);
+      expect(runMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("preserves model output when it cannot be parsed", async () => {
+      const rawModelResponse = { choices: [{ message: { content: "Invalid analysis" } }] };
+      const request = new Request("http://localhost/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: "Verify your account now." }),
+      });
+      const response = await worker.fetch(request, createMockEnv(vi.fn().mockResolvedValue(rawModelResponse)), {});
+      expect(response.status).toBe(502);
+      const data = await response.json();
+      expect(data.rawModelResponse).toEqual(rawModelResponse);
+      expect(data.error).toContain("could not parse");
     });
   });
 

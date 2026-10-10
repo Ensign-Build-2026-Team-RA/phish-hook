@@ -13,115 +13,12 @@ const jsonResponse = (payload, status = 200) => new Response(JSON.stringify(payl
   headers: corsHeaders,
 })
 
-const fallbackHeuristicAnalysis = (text, imagePresent) => {
-  const normalized = normalizeText(text).toLowerCase()
-  const owaspChecks = [
-    {
-      id: 'A01',
-      label: 'Broken Access Control',
-      keywords: ['recover access', 'verify account', 'restore access', 'account suspended', 'locked account', 'security alert'],
-      icon: '🚧',
-    },
-    {
-      id: 'A02',
-      label: 'Cryptographic Failures',
-      keywords: ['password', 'otp', 'one-time code', 'verification code', 'secret code', 'mfa', 'sms code'],
-      icon: '🔐',
-    },
-    {
-      id: 'A03',
-      label: 'Injection',
-      keywords: ['click here', 'open this link', 'follow the link', 'redirect', 'download now', 'submit form'],
-      icon: '🧪',
-    },
-    {
-      id: 'A04',
-      label: 'Insecure Design',
-      keywords: ['urgent', 'immediately', 'act now', 'today only', 'within 24 hours', 'final notice'],
-      icon: '🧠',
-    },
-    {
-      id: 'A05',
-      label: 'Security Misconfiguration',
-      keywords: ['official', 'bank', 'paypal', 'microsoft', 'apple', 'security team', 'customer support'],
-      icon: '⚙️',
-    },
-    {
-      id: 'A06',
-      label: 'Vulnerable Components',
-      keywords: ['legacy portal', 'outdated app', 'unsupported browser', 'expired certificate', 'old version'],
-      icon: '🧰',
-    },
-    {
-      id: 'A07',
-      label: 'Authentication Failures',
-      keywords: ['verify your identity', 'confirm login', 'reset your password', 'sign in to continue', 'account recovery'],
-      icon: '🪪',
-    },
-    {
-      id: 'A08',
-      label: 'Integrity Failures',
-      keywords: ['invoice', 'payment required', 'wire transfer', 'payment update', 'tax refund', 'important document'],
-      icon: '📦',
-    },
-    {
-      id: 'A09',
-      label: 'Logging & Monitoring',
-      keywords: ['ignore this warning', 'do not share', 'keep this private', 'no need to contact support', 'confidential alert'],
-      icon: '📊',
-    },
-    {
-      id: 'A10',
-      label: 'Unsafe URL / SSRF Risk',
-      keywords: ['http://', 'https://', 'click the link', 'visit the portal', 'open the form', 'secure portal'],
-      icon: '🔗',
-    },
-  ]
-
-  const matchedChecks = owaspChecks
-    .map((check) => ({
-      ...check,
-      value: Math.min(99, 22 + check.keywords.filter((term) => normalized.includes(term)).length * 17),
-      matches: check.keywords.filter((term) => normalized.includes(term)),
-    }))
-    .filter((check) => check.matches.length > 0)
-
-  const averageMatchScore = matchedChecks.reduce((total, check) => total + check.value, 0) / Math.max(matchedChecks.length, 1)
-  const score = Math.min(
-    99,
-    Math.max(
-      12,
-      Math.round(30 + averageMatchScore * 0.75 + (imagePresent ? 8 : 0)),
-    ),
-  )
-
-  const risk = matchedChecks.length >= 3 || score >= 68 ? 'High' : score >= 45 ? 'Moderate' : 'Low'
-
-  return {
-    score,
-    risk,
-    summary:
-      matchedChecks.length > 0
-        ? `OWASP Top 10 review found ${matchedChecks.length} relevant web-security patterns consistent with a phishing attempt.`
-        : 'OWASP Top 10 review did not detect a strong phishing pattern in the provided content.',
-    flags: matchedChecks.length
-      ? matchedChecks.slice(0, 4).map((check) => `OWASP ${check.id}: ${check.label}`)
-      : ['OWASP A09: Security logging and monitoring gaps not detected'],
-    signals: matchedChecks.length
-      ? matchedChecks.slice(0, 4).map((check) => ({
-          label: `${check.id} ${check.label}`,
-          value: check.value,
-          icon: check.icon,
-        }))
-      : [
-          { label: 'A09 Logging & Monitoring', value: 0, icon: '📊' },
-          { label: 'A10 Unsafe URLs', value: 0, icon: '🔗' },
-        ],
-  }
 const normalizeText = (value) => typeof value === 'string' ? value.trim() : ''
 
 const parseModelJson = (result) => {
   const output = result?.response
+    ?? result?.choices?.[0]?.message?.content
+    ?? result?.choices?.[0]?.text
   if (output && typeof output === 'object') return output
   if (typeof output !== 'string') throw new Error('Workers AI returned an empty response.')
 
@@ -181,9 +78,14 @@ const analyzeMessage = async (env, { text, sender = 'Unknown', subject = 'No Sub
     chat_template_kwargs: { enable_thinking: false },
   })
 
-  return {
-    analysis: normalizeAnalysis(parseModelJson(result)),
-    rawModelResponse: result,
+  try {
+    return {
+      analysis: normalizeAnalysis(parseModelJson(result)),
+      rawModelResponse: result,
+    }
+  } catch (error) {
+    if (error instanceof Error) error.rawModelResponse = result
+    throw error
   }
 }
 
@@ -237,7 +139,10 @@ export default {
           temperature: 0.2,
         })
 
-        return jsonResponse({ success: true, analysis: aiResponse.response })
+        return jsonResponse({
+          success: true,
+          analysis: aiResponse.response ?? aiResponse.choices?.[0]?.message?.content ?? aiResponse.choices?.[0]?.text ?? aiResponse,
+        })
       } catch (error) {
         console.error('Workers AI analysis failed:', error?.name || 'UnknownError')
         return jsonResponse({ success: false, error: 'AI analysis is temporarily unavailable. Please try again later.' }, 503)
@@ -282,78 +187,6 @@ export default {
       }
 
       try {
-        const prompt = `You are a phishing detection analyst. Review the supplied message or image evidence using the OWASP Top 10 categories, especially A01, A02, A03, A04, A05, A06, A07, A08, A09, and A10. Focus on account takeover attempts, credential theft, unsafe links, impersonation, urgency, authentication failures, and manipulation patterns. Return valid JSON only with keys: score, risk, summary, flags, signals. score is a number 0-99. risk is one of: High, Moderate, Low. summary is a short paragraph. flags is an array of strings that should reference OWASP category IDs and names when relevant. signals is an array of objects with label, value, icon.`
-
-        const resultPayload = {
-          model: env.OPENAI_MODEL || 'gpt-4.1-mini',
-          input: [
-            {
-              role: 'user',
-              content: [
-                {
-                  type: 'input_text',
-                  text: `${prompt}\n\nMessage to review:\n${text || 'No message text provided.'}`,
-                },
-              ],
-            },
-          ],
-        }
-
-        if (image) {
-          resultPayload.input[0].content.push({
-            type: 'input_image',
-            image_url: image,
-          })
-        }
-
-        const response = await globalThis.fetch('https://api.openai.com/v1/responses', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(resultPayload),
-        })
-
-        const responseText = await response.text()
-
-        if (!response.ok) {
-          throw new Error(responseText)
-        }
-
-        let parsed
-        try {
-          parsed = JSON.parse(responseText)
-        } catch {
-          parsed = null
-        }
-
-        const outputText = extractOutputText(parsed)
-        let finalPayload = fallbackHeuristicAnalysis(text, Boolean(image))
-
-        if (outputText) {
-          try {
-            const start = outputText.indexOf('{')
-            const candidateText = start >= 0 ? outputText.slice(start) : outputText
-            const candidate = JSON.parse(candidateText)
-
-            if (candidate && typeof candidate.score === 'number') {
-              finalPayload = {
-                score: Math.max(0, Math.min(99, Number(candidate.score))),
-                risk: candidate.risk || finalPayload.risk,
-                summary: candidate.summary || finalPayload.summary,
-                flags: Array.isArray(candidate.flags) && candidate.flags.length ? candidate.flags : finalPayload.flags,
-                signals: Array.isArray(candidate.signals) && candidate.signals.length ? candidate.signals : finalPayload.signals,
-              }
-            }
-          } catch {
-            finalPayload = fallbackHeuristicAnalysis(text, Boolean(image))
-          }
-        }
-
-        return new Response(JSON.stringify(finalPayload), {
-          status: 200,
-          headers: corsHeaders,
         const { analysis, rawModelResponse } = await analyzeMessage(env, {
           text,
           sender: normalizeText(payload?.sender).slice(0, 200) || 'Unknown',
@@ -361,7 +194,14 @@ export default {
         })
         return jsonResponse({ success: true, analysis, model: AI_MODEL, rawModelResponse })
       } catch (error) {
-        console.error('Workers AI message analysis failed:', error?.name || 'UnknownError')
+        console.error('Workers AI message analysis failed:', error?.name || 'UnknownError', error?.message || 'No error message')
+        if (error?.rawModelResponse !== undefined) {
+          return jsonResponse({
+            error: 'Workers AI returned a response the analyzer could not parse.',
+            model: AI_MODEL,
+            rawModelResponse: error.rawModelResponse,
+          }, 502)
+        }
         return jsonResponse({ error: 'AI analysis is temporarily unavailable. Please try again later.' }, 503)
       }
     }
