@@ -8,7 +8,9 @@
   <strong>Spot suspicious messages before they catch you.</strong>
 </p>
 
-Phishing Hook is a phishing-awareness and message-analysis application built on Cloudflare. Users can paste a suspicious email or message, receive an AI-assisted risk assessment, review the warning signs, and learn what to do next. People can also forward email to any address at `phishhook.lol` and receive a preliminary rating plus a short, expiring link that opens the same message in the site's analyzer.
+## Project summary
+
+Phishing Hook is an AI-powered cybersecurity web application developed by Ensign Build 2026 Team RA to help people recognize phishing attempts and online scams. The project addresses a growing challenge: fraudulent messages that use urgency, fear, and impersonation to deceive users. Phishing Hook analyzes suspicious messages and identifies potential warning signs of manipulation. By integrating artificial intelligence, the application explains these risks in clear, understandable language instead of simply labeling messages as safe or dangerous. Users can paste a message directly or forward an email to receive a preliminary rating and a secure link to the full analyzer. Our goal is to make cybersecurity awareness more accessible to people without technical expertise. Phishing Hook combines AI integration, cybersecurity, and user-centered design in a practical web-based solution. The project demonstrates how technology can help people make more informed decisions about digital communication.
 
 **Live site:** [phishhook.lol](https://phishhook.lol/)
 
