@@ -1,7 +1,8 @@
+import SecurityDashboard from './SecurityDashboard'
 import { useState } from 'react'
 import './App.css'
 
-const navItems = ['Home', 'Analyze', 'History', 'Safety Guide'] as const
+const navItems = ['Home', 'Analyze', 'Dashboard', 'History', 'Safety Guide'] as const
 
 type NavItem = (typeof navItems)[number]
 
@@ -96,6 +97,9 @@ function App() {
 
   const renderPage = () => {
     switch (activePage) {
+      case 'Dashboard':
+        return <SecurityDashboard />
+
       case 'Home':
         return (
           <div className="page-shell">
@@ -226,7 +230,7 @@ function App() {
           <div className="page-shell">
             <div className="section-header-row">
               <div className="eyebrow">Illustrative history examples</div>
-              <button type="button" className="primary-btn small-btn">New Analysis</button>
+              <button type="button" className="primary-btn small-btn" onClick={() => setActivePage('Analyze')}>New Analysis</button>
             </div>
             <h1 className="report-title">History (demo examples)</h1>
 
@@ -248,7 +252,7 @@ function App() {
           <div className="page-shell">
             <div className="section-header-row">
               <div className="eyebrow">Stay alert</div>
-              <button type="button" className="primary-btn small-btn">Run Check</button>
+              <button type="button" className="primary-btn small-btn" onClick={() => setActivePage('Analyze')}>Run Check</button>
             </div>
             <h1 className="report-title">Safety Guide</h1>
 
