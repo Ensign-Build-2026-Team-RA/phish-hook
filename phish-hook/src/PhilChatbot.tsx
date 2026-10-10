@@ -17,7 +17,7 @@ export default function PhilChatbot() {
     event.preventDefault()
     const message = input.trim()
     if (!message || busy) return
-    const previous = messages.filter((m, i) => i !== 0).slice(-8)
+    const previous = messages.filter((_, i) => i !== 0).slice(-8)
     setMessages((old) => [...old, { role: 'user', content: message }])
     setInput('')
     setError('')
