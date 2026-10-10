@@ -66,4 +66,21 @@ describe('email imports in the existing Analyze page', () => {
     expect(container.querySelector('textarea').value).toBe('')
     expect(container.textContent).toContain('Safety Report')
   })
+
+  it('shows the raw failed AI response without persisting the imported email', async () => {
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      error: 'Workers AI returned a response the analyzer could not parse.',
+      model: 'test-model',
+      rawModelResponse: { choices: [{ message: { content: 'Invalid analysis returned by model' } }] },
+    }), { status: 502 })))
+    await mount(new URL(createAnalysisLink('https://phishhook.lol/', sample)).hash)
+    const button = [...container.querySelectorAll('button')].find(button => button.textContent === 'Analyze with Cloudflare AI')
+    await act(async () => button.click())
+    expect(container.textContent).toContain('Invalid analysis returned by model')
+    expect(container.textContent).toContain('test-model')
+    expect(container.querySelector('[role="alert"]').textContent).toContain('could not parse')
+    expect(globalThis.window.localStorage.getItem('phish-hook-draft')).toBeNull()
+    expect(globalThis.window.localStorage.getItem('phish-hook-history')).not.toContain(sample)
+  })
 })
