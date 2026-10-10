@@ -63,6 +63,7 @@ const guideItems = [
 
 function App() {
   const [activePage, setActivePage] = useState<NavItem>('Home')
+  const [theme, setTheme] = useState<'light' | 'dark'>('light')
 
   const renderPage = () => {
     switch (activePage) {
@@ -74,7 +75,7 @@ function App() {
                 <div className="eyebrow">Threat intelligence</div>
                 <h1 className="hero-title">Know when a message is trying to manipulate you.</h1>
                 <p>
-                  Truth Lens helps people evaluate suspicious emails, texts, and social prompts by surfacing urgency,
+                  Phishing Hook helps people evaluate suspicious emails, texts, and social prompts by surfacing urgency,
                   impersonation patterns, and coercive language before trust is lost.
                 </p>
                 <div className="hero-stats">
@@ -255,15 +256,25 @@ function App() {
   }
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${theme}`}>
       <header className="topbar">
         <div className="topbar-inner">
-          <div className="brand" aria-label="Truth Lens home">
+          <div className="brand" aria-label="Phishing Hook home">
             <span className="brand-mark" aria-hidden="true" />
-            <span className="brand-name">Truth Lens</span>
+            <span className="brand-name">Phishing Hook</span>
           </div>
 
           <nav className="nav" aria-label="Main navigation">
+            <button
+              id="toggle-mode"
+              type="button"
+              className="nav-btn mode-toggle"
+              aria-label={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+              onClick={() => setTheme((current) => (current === 'light' ? 'dark' : 'light'))}
+            >
+              <i className={theme === 'dark' ? 'fa-regular fa-sun' : 'fa-regular fa-moon'} aria-hidden="true" />
+            </button>
+
             {navItems.map((item) => (
               <button
                 key={item}
